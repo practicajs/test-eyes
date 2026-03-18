@@ -1943,9 +1943,10 @@ async function aggregate(dataDir) {
 import { exec } from "child_process";
 import { promisify } from "util";
 var execAsync = promisify(exec);
+var EXEC_OPTIONS = { maxBuffer: 50 * 1024 * 1024 };
 async function runGit(args, cwd) {
   try {
-    return await execAsync(`git ${args}`, { cwd });
+    return await execAsync(`git ${args}`, { cwd, ...EXEC_OPTIONS });
   } catch (error) {
     const execError = error;
     throw new Error(`Git command failed: git ${args}
@@ -1954,7 +1955,7 @@ ${execError.stderr || execError.message}`);
 }
 async function runGitSafe(args, cwd) {
   try {
-    const result = await execAsync(`git ${args}`, { cwd });
+    const result = await execAsync(`git ${args}`, { cwd, ...EXEC_OPTIONS });
     return { ...result, success: true };
   } catch (error) {
     const execError = error;
@@ -2001,7 +2002,7 @@ async function commit(message) {
     return { success: false, message: "No changes to commit" };
   }
   try {
-    const { stdout } = await runGit(`commit -m "${message}"`);
+    const { stdout } = await runGit(`commit --no-verify -m "${message}"`);
     const shaMatch = stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
     const commitSha = shaMatch?.[1];
     return { success: true, commitSha, message: "Committed successfully" };

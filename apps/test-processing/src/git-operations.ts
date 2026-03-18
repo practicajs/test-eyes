@@ -8,9 +8,11 @@ const execAsync = promisify(exec)
 // Git Command Executor
 // ============================================================================
 
+const EXEC_OPTIONS = { maxBuffer: 50 * 1024 * 1024 } // 50MB buffer
+
 async function runGit(args: string, cwd?: string): Promise<{ stdout: string; stderr: string }> {
   try {
-    return await execAsync(`git ${args}`, { cwd })
+    return await execAsync(`git ${args}`, { cwd, ...EXEC_OPTIONS })
   } catch (error) {
     const execError = error as { stdout?: string; stderr?: string; message: string }
     throw new Error(`Git command failed: git ${args}\n${execError.stderr || execError.message}`)
@@ -19,7 +21,7 @@ async function runGit(args: string, cwd?: string): Promise<{ stdout: string; std
 
 async function runGitSafe(args: string, cwd?: string): Promise<{ stdout: string; stderr: string; success: boolean }> {
   try {
-    const result = await execAsync(`git ${args}`, { cwd })
+    const result = await execAsync(`git ${args}`, { cwd, ...EXEC_OPTIONS })
     return { ...result, success: true }
   } catch (error) {
     const execError = error as { stdout?: string; stderr?: string }

@@ -1,6 +1,6 @@
 # test-eyes-reporter
 
-Playwright reporter and CLI for Test Eyes analytics dashboard. Collects test results, tracks flaky tests, and deploys an analytics dashboard to GitHub Pages.
+Playwright reporter and CLI for Test Eyes analytics dashboard. Collects test results, tracks flaky tests, and deploys an analytics dashboard to GitHub Pages
 
 ## Features
 

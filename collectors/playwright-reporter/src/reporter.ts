@@ -35,6 +35,7 @@ export class TestEyesReporter implements Reporter {
   private tests: TestResult[] = []
   private originalBranch: string = ''
   private startTime: number = 0
+  private errors: string[] = []
 
   constructor(options: TestEyesReporterOptions = {}) {
     this.options = {
@@ -55,74 +56,86 @@ export class TestEyesReporter implements Reporter {
     return !!(process.env.CI || process.env.GITHUB_ACTIONS)
   }
 
+  private log(message: string): void {
+    console.log(`[test-eyes] ${message}`)
+  }
+
+  private logError(message: string, error?: unknown): void {
+    const errorMsg = error instanceof Error ? error.message : String(error ?? '')
+    const fullMsg = errorMsg ? `${message}: ${errorMsg}` : message
+    console.error(`[test-eyes] ERROR: ${fullMsg}`)
+    this.errors.push(fullMsg)
+  }
+
   onBegin(_config: FullConfig, _suite: Suite): void {
     this.startTime = Date.now()
     this.tests = []
-    console.log('\n[test-eyes] Starting test collection...')
+    this.errors = []
+    this.log('Starting test collection...')
   }
 
   onTestEnd(test: TestCase, result: PlaywrightTestResult): void {
-    // Determine if test was flaky (failed at least once but ultimately passed)
     const wasFlaky = result.status === 'passed' && result.retry > 0
-
-    // Calculate total duration across all retries
     const durationMs = result.duration
-
-    // Build full test name: file > suite > test
     const titlePath = test.titlePath().join(' > ')
 
-    // Map Playwright statuses to our simplified model
     let status: 'passed' | 'failed' | 'skipped'
     if (result.status === 'passed') {
       status = 'passed'
     } else if (result.status === 'skipped') {
       status = 'skipped'
     } else {
-      status = 'failed' // timedOut, failed, interrupted -> failed
+      status = 'failed'
     }
 
-    this.tests.push({
-      name: titlePath,
-      durationMs,
-      status,
-      wasFlaky
-    })
+    this.tests.push({ name: titlePath, durationMs, status, wasFlaky })
   }
 
-  async onEnd(result: FullResult): Promise<void> {
+  async onEnd(_result: FullResult): Promise<void> {
     const duration = Date.now() - this.startTime
-    console.log(`\n[test-eyes] Tests completed in ${duration}ms`)
-    console.log(`[test-eyes] Collected ${this.tests.length} test results`)
+    this.log(`Tests completed in ${duration}ms`)
+    this.log(`Collected ${this.tests.length} test results`)
 
     const flakyCount = this.tests.filter(t => t.wasFlaky).length
     if (flakyCount > 0) {
-      console.log(`[test-eyes] Detected ${flakyCount} flaky tests`)
+      this.log(`Detected ${flakyCount} flaky tests`)
     }
 
     if (!this.isCI()) {
-      console.log('[test-eyes] Not in CI environment, skipping data submission')
-      console.log('[test-eyes] Set CI=true to enable data collection')
+      this.log('Not in CI environment, skipping data submission')
+      this.log('Set CI=true to enable data collection')
       return
     }
 
-    try {
-      await this.submitData()
-    } catch (error) {
-      console.error('[test-eyes] Failed to submit data:', error)
+    await this.submitData()
+
+    if (this.errors.length > 0) {
+      this.log(`Completed with ${this.errors.length} error(s)`)
     }
   }
 
   private async submitData(): Promise<void> {
-    console.log('[test-eyes] Submitting test data...')
+    this.log('Submitting test data...')
 
-    // Configure git
-    await configureGit(getDefaultGitConfig())
+    // Step 1: Configure git
+    try {
+      await configureGit(getDefaultGitConfig())
+    } catch (error) {
+      this.logError('Failed to configure git', error)
+      return
+    }
 
-    // Get current state
-    const commitSha = process.env.GITHUB_SHA || await getCurrentSha()
-    this.originalBranch = await getCurrentBranch()
+    // Step 2: Get current state
+    let commitSha: string
+    try {
+      commitSha = process.env.GITHUB_SHA || await getCurrentSha()
+      this.originalBranch = await getCurrentBranch()
+    } catch (error) {
+      this.logError('Failed to get git state', error)
+      return
+    }
 
-    // Build run data
+    // Step 3: Build run data
     const runData: RunData = {
       runId: generateRunId(commitSha),
       prNumber: this.options.prNumber,
@@ -131,49 +144,80 @@ export class TestEyesReporter implements Reporter {
       tests: this.tests
     }
 
-    // Switch to data branch
+    // Step 4: Switch to data branch
     const dataBranch = this.options.dataBranch
-    const branchExisted = await fetchBranch(dataBranch)
-
-    if (branchExisted || await branchExists(dataBranch)) {
-      await checkoutBranch(dataBranch)
-    } else {
-      console.log(`[test-eyes] Creating new branch: ${dataBranch}`)
-      await createOrphanBranch(dataBranch)
+    try {
+      const branchExisted = await fetchBranch(dataBranch)
+      if (branchExisted || await branchExists(dataBranch)) {
+        await checkoutBranch(dataBranch)
+      } else {
+        this.log(`Creating new branch: ${dataBranch}`)
+        await createOrphanBranch(dataBranch)
+      }
+    } catch (error) {
+      this.logError(`Failed to checkout branch ${dataBranch}`, error)
+      return
     }
 
-    // Save test data
+    // Step 5: Save test data
     const dataDir = 'data'
-    await ensureDir(dataDir)
     const filename = generateFilename(commitSha)
-    await saveRunData(dataDir, filename, runData)
-    console.log(`[test-eyes] Saved: ${dataDir}/${filename}`)
-
-    // Aggregate
-    await aggregate(dataDir)
-    console.log('[test-eyes] Aggregation complete')
-
-    // Commit and push
-    await stageFiles(['data/'])
-    if (await hasChanges()) {
-      const sha = await commit(`Add test data: ${runData.runId}`)
-      if (sha) {
-        console.log(`[test-eyes] Committed: ${sha.slice(0, 7)}`)
-      }
-      const pushed = await push(dataBranch)
-      if (pushed) {
-        console.log(`[test-eyes] Pushed to ${dataBranch}`)
-      }
+    try {
+      await ensureDir(dataDir)
+      await saveRunData(dataDir, filename, runData)
+      this.log(`Saved: ${dataDir}/${filename}`)
+    } catch (error) {
+      this.logError('Failed to save test data', error)
+      await this.returnToOriginalBranch()
+      return
     }
 
-    // Return to original branch
-    if (this.originalBranch && this.originalBranch !== dataBranch) {
-      await checkoutBranch(this.originalBranch)
+    // Step 6: Aggregate
+    try {
+      await aggregate(dataDir)
+      this.log('Aggregation complete')
+    } catch (error) {
+      this.logError('Failed to aggregate data', error)
+      // Continue - we still want to commit what we have
     }
 
-    // Deploy if enabled
+    // Step 7: Commit and push
+    try {
+      await stageFiles(['data/'])
+      if (await hasChanges()) {
+        const sha = await commit(`Add test data: ${runData.runId}`)
+        if (sha) {
+          this.log(`Committed: ${sha.slice(0, 7)}`)
+        }
+        const pushed = await push(dataBranch)
+        if (pushed) {
+          this.log(`Pushed to ${dataBranch}`)
+        } else {
+          this.logError('Failed to push to remote')
+        }
+      } else {
+        this.log('No changes to commit')
+      }
+    } catch (error) {
+      this.logError('Failed to commit/push', error)
+    }
+
+    // Step 8: Return to original branch
+    await this.returnToOriginalBranch()
+
+    // Step 9: Deploy if enabled
     if (this.options.deploy) {
       await this.deployDashboard()
+    }
+  }
+
+  private async returnToOriginalBranch(): Promise<void> {
+    if (this.originalBranch && this.originalBranch !== this.options.dataBranch) {
+      try {
+        await checkoutBranch(this.originalBranch)
+      } catch (error) {
+        this.logError('Failed to return to original branch', error)
+      }
     }
   }
 
@@ -184,7 +228,7 @@ export class TestEyesReporter implements Reporter {
         deployBranch: this.options.deployBranch
       })
     } catch (error) {
-      console.error('[test-eyes] Deploy failed:', (error as Error).message)
+      this.logError('Deploy failed', error)
     }
   }
 }

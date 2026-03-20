@@ -6,6 +6,7 @@ export interface TestResult {
   name: string
   durationMs: number
   status: 'passed' | 'failed' | 'skipped'
+  wasFlaky?: boolean // true if test failed then passed on retry
 }
 
 export interface RunData {
@@ -24,6 +25,7 @@ export interface TestStats {
   totalRuns: number
   passCount: number
   failCount: number
+  flakyCount: number
   avgDurationMs: number
   p95DurationMs: number
 }

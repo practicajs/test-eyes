@@ -3,6 +3,7 @@ export interface TestRow {
   totalRuns: number
   passCount: number
   failCount: number
+  flakyCount: number
   avgDurationMs: number
   p95DurationMs: number
 }

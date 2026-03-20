@@ -17,7 +17,8 @@
     {
       "name": "tests/app.test.ts profile > should load user data",
       "durationMs": 0,
-      "status": "passed"
+      "status": "passed",
+      "wasFlaky": true
     },
     {
       "name": "tests/app.test.ts notifications > should send email",

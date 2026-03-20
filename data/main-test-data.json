@@ -2,7 +2,7 @@
   "schemaVersion": "1.0.0",
   "meta": {
     "totalRuns": 11,
-    "lastAggregatedAt": "2026-03-20T13:59:47.967Z",
+    "lastAggregatedAt": "2026-03-20T14:25:00.000Z",
     "processedFiles": [
       "2026-02-13_3c8bd9e.json",
       "2026-02-13_c3d2a12.json",
@@ -22,6 +22,7 @@
       "totalRuns": 11,
       "passCount": 11,
       "failCount": 0,
+      "flakyCount": 0,
       "avgDurationMs": 1,
       "p95DurationMs": 2
     },
@@ -29,34 +30,23 @@
       "totalRuns": 11,
       "passCount": 11,
       "failCount": 0,
-      "avgDurationMs": 1503,
+      "flakyCount": 0,
+      "avgDurationMs": 1502,
       "p95DurationMs": 1503
     },
     "tests/app.test.ts profile > should load user data": {
       "totalRuns": 11,
-      "passCount": 8,
-      "failCount": 3,
-      "avgDurationMs": 4,
-      "p95DurationMs": 4
+      "passCount": 9,
+      "failCount": 2,
+      "flakyCount": 3,
+      "avgDurationMs": 2,
+      "p95DurationMs": 7
     },
     "tests/app.test.ts notifications > should send email": {
       "totalRuns": 11,
       "passCount": 11,
       "failCount": 0,
-      "avgDurationMs": 0,
-      "p95DurationMs": 0
-    },
-    "tests/app.test.ts dashboard > should load widgets": {
-      "totalRuns": 1,
-      "passCount": 1,
-      "failCount": 0,
-      "avgDurationMs": 0,
-      "p95DurationMs": 0
-    },
-    "tests/app.test.ts search > should find results": {
-      "totalRuns": 1,
-      "passCount": 1,
-      "failCount": 0,
+      "flakyCount": 0,
       "avgDurationMs": 0,
       "p95DurationMs": 0
     },
@@ -64,6 +54,7 @@
       "totalRuns": 6,
       "passCount": 6,
       "failCount": 0,
+      "flakyCount": 0,
       "avgDurationMs": 0,
       "p95DurationMs": 0
     }

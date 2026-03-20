@@ -77,7 +77,7 @@ export class TestEyesReporter implements Reporter {
 
   onTestEnd(test: TestCase, result: PlaywrightTestResult): void {
     this.tests.push({
-      name: test.titlePath().join(' > '),
+      name: test.titlePath().filter(Boolean).join(' > '),
       durationMs: result.duration,
       status: this.mapStatus(result.status),
       wasFlaky: result.status === 'passed' && result.retry > 0

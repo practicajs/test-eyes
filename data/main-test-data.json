@@ -1,42 +1,43 @@
 {
   "schemaVersion": "1.0.0",
   "meta": {
-    "totalRuns": 6,
-    "lastAggregatedAt": "2026-03-20T11:43:30.800Z",
+    "totalRuns": 7,
+    "lastAggregatedAt": "2026-03-20T11:49:28.864Z",
     "processedFiles": [
       "2026-02-13_3c8bd9e.json",
       "2026-02-13_c3d2a12.json",
       "2026-02-16_0006e62.json",
       "2026-02-16_2af3b0e.json",
       "2026-02-16_b4e71e0.json",
-      "2026-03-20_7246c29.json"
+      "2026-03-20_7246c29.json",
+      "2026-03-20_42b3912.json"
     ]
   },
   "tests": {
     "tests/app.test.ts auth > should login successfully": {
-      "totalRuns": 6,
-      "passCount": 6,
+      "totalRuns": 7,
+      "passCount": 7,
       "failCount": 0,
       "avgDurationMs": 1,
       "p95DurationMs": 1
     },
     "tests/app.test.ts payments > should charge card": {
-      "totalRuns": 6,
-      "passCount": 6,
+      "totalRuns": 7,
+      "passCount": 7,
       "failCount": 0,
       "avgDurationMs": 1503,
       "p95DurationMs": 1503
     },
     "tests/app.test.ts profile > should load user data": {
-      "totalRuns": 6,
-      "passCount": 4,
+      "totalRuns": 7,
+      "passCount": 5,
       "failCount": 2,
       "avgDurationMs": 3,
-      "p95DurationMs": 6
+      "p95DurationMs": 3
     },
     "tests/app.test.ts notifications > should send email": {
-      "totalRuns": 6,
-      "passCount": 6,
+      "totalRuns": 7,
+      "passCount": 7,
       "failCount": 0,
       "avgDurationMs": 0,
       "p95DurationMs": 0
@@ -56,8 +57,8 @@
       "p95DurationMs": 0
     },
     "tests/app.test.ts settings > should save preferences": {
-      "totalRuns": 1,
-      "passCount": 1,
+      "totalRuns": 2,
+      "passCount": 2,
       "failCount": 0,
       "avgDurationMs": 0,
       "p95DurationMs": 0

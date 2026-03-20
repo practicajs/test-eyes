@@ -54,6 +54,7 @@ function createEmptyStats(): TestStats {
     totalRuns: 0,
     passCount: 0,
     failCount: 0,
+    flakyCount: 0,
     avgDurationMs: 0,
     p95DurationMs: 0
   }
@@ -81,6 +82,10 @@ export function processTestRun(
       stats.passCount++
     } else if (test.status === 'failed') {
       stats.failCount++
+    }
+
+    if (test.wasFlaky) {
+      stats.flakyCount++
     }
 
     durations.get(test.name)!.push(test.durationMs)

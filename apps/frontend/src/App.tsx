@@ -4,35 +4,7 @@ import type { SortingState } from '@tanstack/react-table'
 import { Title } from '@test-eyes/design-system'
 import { SearchInput } from './components/SearchInput'
 import { useTestFilter } from './hooks/useTestFilter'
-
-//Yoni: Create /src/pages
-interface AggregatedData {
-  schemaVersion: string
-  meta: {
-    totalRuns: number
-    lastAggregatedAt: string
-    processedFiles: string[]
-  }
-  tests: Record<string, TestStats>
-}
-
-interface TestStats {
-  totalRuns: number
-  passCount: number
-  failCount: number
-  avgDurationMs: number
-  p95DurationMs: number
-}
-
-// These types 👆 are quite similar, use a union type?
-interface TestRow {
-  name: string
-  totalRuns: number
-  passCount: number
-  failCount: number
-  avgDurationMs: number
-  p95DurationMs: number
-}
+import type { TestRow, AggregatedData } from './types'
 
 const columnHelper = createColumnHelper<TestRow>()
 
@@ -43,6 +15,7 @@ const overviewColumns = [
     cell: info => (info.getValue() / 1000).toFixed(2),
   }),
   columnHelper.accessor('failCount', { header: 'Failures', cell: info => info.getValue() }),
+  columnHelper.accessor('flakyCount', { header: 'Flaky', cell: info => info.getValue() }),
   columnHelper.accessor('totalRuns', { header: 'Runs', cell: info => info.getValue() }),
 ]
 
@@ -86,7 +59,12 @@ export default function App() {
 
         const rows: TestRow[] = Object.entries(aggregated.tests).map(([name, stats]) => ({
           name,
-          ...stats
+          totalRuns: stats.totalRuns,
+          passCount: stats.passCount,
+          failCount: stats.failCount,
+          flakyCount: stats.flakyCount ?? 0, // backwards compatibility
+          avgDurationMs: stats.avgDurationMs,
+          p95DurationMs: stats.p95DurationMs
         }))
 
         setData(rows)

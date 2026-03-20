@@ -7,9 +7,11 @@ export async function ensureDir(dirPath: string): Promise<void> {
 }
 
 export function generateRunId(commitSha: string): string {
-  const date = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const date = now.toISOString().split('T')[0]
+  const time = now.toISOString().split('T')[1].slice(0, 8).replace(/:/g, '')
   const shortSha = commitSha.slice(0, 7)
-  return `${date}_${shortSha}`
+  return `${date}_${time}_${shortSha}`
 }
 
 export function generateFilename(commitSha: string): string {

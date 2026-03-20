@@ -37,10 +37,10 @@ describe('file-operations', () => {
   })
 
   describe('generateRunId', () => {
-    it('should generate run id with date and short sha', () => {
+    it('should generate run id with date, time and short sha', () => {
       const runId = generateRunId('abc123456789')
 
-      expect(runId).toMatch(/^\d{4}-\d{2}-\d{2}_abc1234$/)
+      expect(runId).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}_abc1234$/)
     })
   })
 
@@ -48,7 +48,7 @@ describe('file-operations', () => {
     it('should generate filename with .json extension', () => {
       const filename = generateFilename('abc123456789')
 
-      expect(filename).toMatch(/^\d{4}-\d{2}-\d{2}_abc1234\.json$/)
+      expect(filename).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}_abc1234\.json$/)
     })
   })
 

@@ -1,0 +1,51 @@
+{
+  "name": "@practica/test-eyes",
+  "version": "0.1.4",
+  "description": "Playwright reporter and CLI for Test Eyes analytics dashboard",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "test-eyes": "dist/cli.js",
+    "test-eyes-reporter": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "playwright",
+    "reporter",
+    "test-analytics",
+    "flaky-tests",
+    "test-eyes"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/test-eyes"
+  }
+}

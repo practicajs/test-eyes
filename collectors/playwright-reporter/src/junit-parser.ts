@@ -45,40 +45,50 @@ function parseTestCase(testCase: JUnitTestCase): TestResult {
 }
 
 export function parseJUnitXml(xml: string): TestResult[] {
-  // Simple XML parser - no external dependencies
   const tests: TestResult[] = []
 
-  // Extract all testcase elements
-  const testCaseRegex = /<testcase([^>]*)(?:\/>|>([\s\S]*?)<\/testcase>)/g
+  // Match testcase with content: <testcase ...>...</testcase>
+  // Negative lookbehind (?<!/) ensures we don't match self-closing tags
+  const withContentRegex = /<testcase\s+([^>]*?)(?<!\/)>([\s\S]*?)<\/testcase>/g
   let match
 
-  while ((match = testCaseRegex.exec(xml)) !== null) {
+  while ((match = withContentRegex.exec(xml)) !== null) {
     const attrs = match[1]
-    const content = match[2] || ''
+    const content = match[2]
+    tests.push(parseTestAttrs(attrs, content))
+  }
 
-    const nameMatch = attrs.match(/name=["']([^"']+)["']/)
-    const classnameMatch = attrs.match(/classname=["']([^"']+)["']/)
-    const timeMatch = attrs.match(/time=["']([^"']+)["']/)
-
-    const name = nameMatch?.[1] || 'unknown'
-    const classname = classnameMatch?.[1] || ''
-    const time = timeMatch?.[1] || '0'
-
-    let status: TestResult['status'] = 'passed'
-    if (content.includes('<skipped') || attrs.includes('skipped')) {
-      status = 'skipped'
-    } else if (content.includes('<failure') || content.includes('<error')) {
-      status = 'failed'
-    }
-
-    tests.push({
-      name: classname ? `${classname} ${name}` : name,
-      durationMs: Math.round(parseFloat(time) * 1000),
-      status
-    })
+  // Match self-closing: <testcase ... />
+  const selfClosingRegex = /<testcase\s+([^>]*?)\/>/g
+  while ((match = selfClosingRegex.exec(xml)) !== null) {
+    const attrs = match[1]
+    tests.push(parseTestAttrs(attrs, ''))
   }
 
   return tests
+}
+
+function parseTestAttrs(attrs: string, content: string): TestResult {
+  const nameMatch = attrs.match(/name=["']([^"']+)["']/)
+  const classnameMatch = attrs.match(/classname=["']([^"']+)["']/)
+  const timeMatch = attrs.match(/time=["']([^"']+)["']/)
+
+  const name = nameMatch?.[1] || 'unknown'
+  const classname = classnameMatch?.[1] || ''
+  const time = timeMatch?.[1] || '0'
+
+  let status: TestResult['status'] = 'passed'
+  if (content.includes('<skipped') || attrs.includes('skipped')) {
+    status = 'skipped'
+  } else if (content.includes('<failure') || content.includes('<error')) {
+    status = 'failed'
+  }
+
+  return {
+    name: classname ? `${classname} ${name}` : name,
+    durationMs: Math.round(parseFloat(time) * 1000),
+    status
+  }
 }
 
 export async function parseJUnitFile(filepath: string): Promise<TestResult[]> {

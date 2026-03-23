@@ -1,6 +1,6 @@
 {
   "name": "@practica/test-eyes",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Playwright reporter for Test Eyes analytics dashboard",
   "type": "module",
   "main": "dist/index.js",

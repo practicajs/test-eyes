@@ -53,7 +53,9 @@ export {
   pushWithUpstream,
   removeAllTracked,
   getCurrentBranch,
-  getCurrentSha
+  getCurrentSha,
+  pushToGitHub,
+  type PushToGitHubOptions
 } from './git-operations.js'
 
 // Deploy
@@ -67,7 +69,9 @@ export {
 // Collector
 export {
   collectTestData,
+  collectFromRunData,
   preserveActionDist,
   type CollectResult,
+  type CollectFromRunDataResult,
   type CollectWithDeployOptions
 } from './collector.js'

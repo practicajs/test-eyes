@@ -74,12 +74,21 @@ export async function checkoutBranch(branch: string, createOrphan = false): Prom
 }
 
 export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
+  // Try 1: checkout existing local branch
   const result = await runGitSafe(`checkout ${branch}`)
-  if (!result.success) {
-    await runGit(`checkout --orphan ${branch}`)
-    return true
+  if (result.success) {
+    return false
   }
-  return false
+
+  // Try 2: checkout from remote (branch exists on remote but not locally)
+  const fromRemote = await runGitSafe(`checkout -b ${branch} origin/${branch}`)
+  if (fromRemote.success) {
+    return false
+  }
+
+  // Try 3: create new orphan branch
+  await runGit(`checkout --orphan ${branch}`)
+  return true
 }
 
 // ============================================================================
@@ -159,4 +168,34 @@ export async function getCurrentBranch(): Promise<string> {
 export async function getCurrentSha(): Promise<string> {
   const { stdout } = await runGit('rev-parse HEAD')
   return stdout.trim()
+}
+
+// ============================================================================
+// Push to GitHub (Stubbable Boundary for Testing)
+// ============================================================================
+
+export interface PushToGitHubOptions {
+  branch: string
+  message: string
+  files: string[]
+}
+
+/**
+ * Stubbable boundary for testing. Encapsulates git stage + commit + push.
+ * Flow tests stub only this function while running all upstream code for real.
+ */
+export async function pushToGitHub(options: PushToGitHubOptions): Promise<string | null> {
+  await stageFiles(options.files)
+
+  if (!await hasChanges()) {
+    return null
+  }
+
+  const result = await commit(options.message)
+  if (!result.success || !result.commitSha) {
+    return null
+  }
+
+  await push(options.branch)
+  return result.commitSha
 }

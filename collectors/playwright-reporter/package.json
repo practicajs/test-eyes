@@ -1,14 +1,10 @@
 {
   "name": "@practica/test-eyes",
-  "version": "0.1.4",
-  "description": "Playwright reporter and CLI for Test Eyes analytics dashboard",
+  "version": "0.1.5",
+  "description": "Playwright reporter for Test Eyes analytics dashboard",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": {
-    "test-eyes": "dist/cli.js",
-    "test-eyes-reporter": "dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -22,10 +18,11 @@
   ],
   "scripts": {
     "build": "tsc",
+    "build:bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@playwright/test --external:child_process --external:util --external:fs --external:fs/promises --external:path && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm build:bundle"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.40.0"
@@ -33,6 +30,8 @@
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "@types/node": "^22.0.0",
+    "esbuild": "^0.27.3",
+    "test-processing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^3.0.0"
   },

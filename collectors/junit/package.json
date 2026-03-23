@@ -1,0 +1,40 @@
+{
+  "name": "@practica/test-eyes-junit",
+  "version": "0.1.0",
+  "description": "JUnit XML collector for Test Eyes analytics dashboard",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "test-eyes-junit": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "test-processing": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.3"
+  },
+  "keywords": [
+    "junit",
+    "test-analytics",
+    "flaky-tests",
+    "test-eyes"
+  ],
+  "license": "MIT"
+}

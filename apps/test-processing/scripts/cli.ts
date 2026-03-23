@@ -1,50 +1,10 @@
 #!/usr/bin/env node
 import { parseArgs } from 'util'
-import { collectTestData, deployDashboard, aggregate } from '../src/index.js'
+import { deployDashboard, aggregate } from '../src/index.js'
 
 // ============================================================================
 // CLI Commands
 // ============================================================================
-
-async function runCollect(args: string[]): Promise<void> {
-  const { values } = parseArgs({
-    args,
-    options: {
-      'junit-path': { type: 'string', short: 'j' },
-      'output-path': { type: 'string', short: 'o', default: 'test-data.json' },
-      'data-branch': { type: 'string', short: 'b', default: 'gh-data' },
-      'commit-sha': { type: 'string', short: 'c' },
-      'pr-number': { type: 'string', short: 'p', default: '0' }
-    },
-    allowPositionals: true
-  })
-
-  const junitPath = values['junit-path']
-  if (!junitPath) {
-    console.error('Error: --junit-path is required')
-    process.exit(1)
-  }
-
-  const commitSha = values['commit-sha'] || process.env.GITHUB_SHA || 'local'
-  const prNumber = parseInt(values['pr-number'] || '0', 10)
-
-  const result = await collectTestData({
-    junitPath,
-    outputPath: values['output-path']!,
-    dataBranch: values['data-branch']!,
-    commitSha,
-    prNumber
-  })
-
-  if (result.success) {
-    console.log(`✓ ${result.message}`)
-    console.log(`  Tests: ${result.testsFound}`)
-    console.log(`  Total runs: ${result.aggregatedRuns}`)
-  } else {
-    console.error(`✗ ${result.message}`)
-    process.exit(1)
-  }
-}
 
 async function runDeploy(args: string[]): Promise<void> {
   const { values } = parseArgs({
@@ -103,10 +63,6 @@ async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2)
 
   switch (command) {
-    case 'collect':
-      await runCollect(args)
-      break
-
     case 'deploy':
       await runDeploy(args)
       break
@@ -133,23 +89,18 @@ function printHelp(): void {
 test-processing CLI
 
 Commands:
-  collect     Collect test data from JUnit XML and push to data branch
   deploy      Deploy dashboard to GitHub Pages
   aggregate   Aggregate test data files
 
+Note: For collecting test data, use:
+  - @practica/test-eyes (Playwright reporter)
+  - @practica/test-eyes-junit (JUnit XML collector)
+
 Examples:
-  tsx cli.ts collect --junit-path ./test-results.xml
   tsx cli.ts deploy --dist-dir ./dist --data-dir ./data
   tsx cli.ts aggregate ./data
 
 Options:
-  collect:
-    --junit-path, -j    Path to JUnit XML file (required)
-    --output-path, -o   Output JSON path (default: test-data.json)
-    --data-branch, -b   Data branch name (default: gh-data)
-    --commit-sha, -c    Commit SHA (default: GITHUB_SHA env)
-    --pr-number, -p     PR number (default: 0)
-
   deploy:
     --dist-dir, -d      Frontend dist directory (required)
     --data-dir          Data directory (default: data)

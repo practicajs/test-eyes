@@ -11,26 +11,3 @@ export interface TestEyesReporterOptions {
   // PR number (default: from GITHUB_PR_NUMBER or 0)
   prNumber?: number
 }
-
-// Internal test result format (matches test-processing)
-export interface TestResult {
-  name: string
-  durationMs: number
-  status: 'passed' | 'failed' | 'skipped'
-  wasFlaky?: boolean
-}
-
-// Run data format (matches test-processing)
-export interface RunData {
-  runId: string
-  prNumber: number
-  commitSha: string
-  createdAt: string
-  tests: TestResult[]
-}
-
-// Git configuration
-export interface GitConfig {
-  userName: string
-  userEmail: string
-}

@@ -1,5 +1,5 @@
 import path from 'path'
-import type { CollectOptions } from './types.js'
+import type { CollectOptions, CollectFromRunDataOptions, RunData } from './types.js'
 import { parseAndBuildRunData } from './junit-parser.js'
 import { aggregate } from './aggregate.js'
 import {
@@ -15,8 +15,93 @@ import {
   checkoutOrCreateBranch,
   stageFiles,
   commit,
-  push
+  push,
+  pushToGitHub,
+  getCurrentBranch
 } from './git-operations.js'
+
+// ============================================================================
+// Format-Agnostic Collection (Core Function)
+// ============================================================================
+
+export interface CollectFromRunDataResult {
+  success: boolean
+  message: string
+  commitSha?: string
+  aggregatedRuns: number
+}
+
+/**
+ * Format-agnostic collection function. Both JUnit and Playwright collectors
+ * call this shared function. All format-specific logic stays in collectors.
+ */
+export async function collectFromRunData(
+  options: CollectFromRunDataOptions
+): Promise<CollectFromRunDataResult> {
+  const { runData, dataBranch, deployAfterCollect, deployBranch } = options
+
+  try {
+    // Step 1: Configure git
+    await configureGit(getDefaultGitConfig())
+    const originalBranch = await getCurrentBranch()
+
+    // Step 2: Fetch and checkout data branch
+    console.log(`[test-eyes] Fetching branches: main, ${dataBranch}`)
+    await fetchBranches(['main', dataBranch])
+
+    console.log(`[test-eyes] Checking out ${dataBranch}`)
+    const isNew = await checkoutOrCreateBranch(dataBranch)
+    if (isNew) {
+      console.log(`[test-eyes] Created new branch: ${dataBranch}`)
+    }
+
+    // Step 3: Save run data
+    const dataDir = 'data'
+    await ensureDir(dataDir)
+    const filename = generateTestDataFilename(runData.commitSha)
+    const dataFilePath = await saveTestData(dataDir, filename, runData)
+    console.log(`[test-eyes] Saved test data to: ${dataFilePath}`)
+
+    // Step 4: Aggregate
+    console.log('[test-eyes] Running aggregation...')
+    const aggregateResult = await aggregate(dataDir)
+    console.log(`[test-eyes] Aggregated ${aggregateResult.totalRuns} runs, ${aggregateResult.totalTests} tests`)
+
+    // Step 5: Commit and push via stubbable boundary
+    const commitSha = await pushToGitHub({
+      branch: dataBranch,
+      message: `Add test data: ${runData.runId}`,
+      files: ['data/']
+    })
+
+    if (commitSha) {
+      console.log(`[test-eyes] Committed and pushed: ${commitSha.slice(0, 7)}`)
+    } else {
+      console.log('[test-eyes] No changes to commit')
+    }
+
+    // Step 6: Return to original branch
+    if (originalBranch && originalBranch !== dataBranch) {
+      await checkoutOrCreateBranch(originalBranch)
+    }
+
+    // Note: Deploy is handled separately by the action or CLI
+    // as it requires the frontend dist directory
+
+    return {
+      success: true,
+      message: 'Test data collected successfully',
+      commitSha: commitSha ?? undefined,
+      aggregatedRuns: aggregateResult.totalRuns
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: (error as Error).message,
+      aggregatedRuns: 0
+    }
+  }
+}
 
 // ============================================================================
 // Collection Result

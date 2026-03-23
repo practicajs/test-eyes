@@ -6,40 +6,21 @@ import type {
   TestCase,
   TestResult as PlaywrightTestResult
 } from '@playwright/test/reporter'
-import type { TestEyesReporterOptions, TestResult, RunData } from './types.js'
+import type { TestEyesReporterOptions } from './types.js'
 import {
-  generateRunId,
-  generateFilename,
-  saveRunData,
-  ensureDir
-} from './file-operations.js'
-import {
-  configureGit,
-  getDefaultGitConfig,
-  getCurrentSha,
-  getCurrentBranch,
-  fetchBranch,
-  branchExists,
-  checkoutBranch,
-  createOrphanBranch,
-  stageFiles,
-  hasChanges,
-  commit,
-  push
-} from './git-operations.js'
-import { aggregate } from './aggregate.js'
-import { deployDashboard } from './deploy.js'
+  collectFromRunData,
+  type TestResult,
+  type RunData
+} from 'test-processing'
 
-interface SubmitContext {
-  commitSha: string
-  originalBranch: string
-  runData: RunData
+interface TestAttempts {
+  test: TestCase
+  attempts: PlaywrightTestResult[]
 }
 
 export class TestEyesReporter implements Reporter {
   private options: Required<TestEyesReporterOptions>
-  private tests: TestResult[] = []
-  private originalBranch = ''
+  private testAttempts = new Map<string, TestAttempts>()
   private startTime = 0
 
   constructor(options: TestEyesReporterOptions = {}) {
@@ -71,30 +52,28 @@ export class TestEyesReporter implements Reporter {
 
   onBegin(_config: FullConfig, _suite: Suite): void {
     this.startTime = Date.now()
-    this.tests = []
+    this.testAttempts.clear()
     this.log('Starting test collection...')
   }
 
   onTestEnd(test: TestCase, result: PlaywrightTestResult): void {
-    this.tests.push({
-      name: test.titlePath().filter(Boolean).join(' > '),
-      durationMs: result.duration,
-      status: this.mapStatus(result.status),
-      wasFlaky: result.status === 'passed' && result.retry > 0
-    })
-  }
+    const testId = test.id
+    const existing = this.testAttempts.get(testId)
 
-  private mapStatus(status: string): 'passed' | 'failed' | 'skipped' {
-    if (status === 'passed') return 'passed'
-    if (status === 'skipped') return 'skipped'
-    return 'failed'
+    if (existing) {
+      existing.attempts.push(result)
+    } else {
+      this.testAttempts.set(testId, { test, attempts: [result] })
+    }
   }
 
   async onEnd(_result: FullResult): Promise<void> {
     this.log(`Tests completed in ${Date.now() - this.startTime}ms`)
-    this.log(`Collected ${this.tests.length} test results`)
 
-    const flakyCount = this.tests.filter(t => t.wasFlaky).length
+    const tests = this.buildTestResults()
+    this.log(`Collected ${tests.length} test results`)
+
+    const flakyCount = tests.filter(t => t.wasFlaky).length
     if (flakyCount > 0) this.log(`Detected ${flakyCount} flaky tests`)
 
     if (!this.isCI()) {
@@ -102,110 +81,75 @@ export class TestEyesReporter implements Reporter {
       return
     }
 
-    await this.submitData()
+    await this.submitData(tests)
   }
 
-  private async submitData(): Promise<void> {
-    const context = await this.prepareContext()
-    if (!context) return
+  private buildTestResults(): TestResult[] {
+    const results: TestResult[] = []
 
-    const success = await this.saveToDataBranch(context)
-    await this.returnToOriginalBranch(context.originalBranch)
+    for (const { test, attempts } of this.testAttempts.values()) {
+      const outcome = test.outcome()
+      const lastAttempt = attempts[attempts.length - 1]
+      const retries = attempts.length - 1
 
-    if (success && this.options.deploy) {
-      await this.deploy()
+      results.push({
+        name: test.titlePath().filter(Boolean).join(' > '),
+        durationMs: lastAttempt.duration,
+        status: this.mapOutcome(outcome),
+        wasFlaky: outcome === 'flaky',
+        retries: retries > 0 ? retries : undefined
+      })
     }
+
+    return results
   }
 
-  private async prepareContext(): Promise<SubmitContext | null> {
+  private mapOutcome(outcome: ReturnType<TestCase['outcome']>): 'passed' | 'failed' | 'skipped' {
+    if (outcome === 'expected' || outcome === 'flaky') return 'passed'
+    if (outcome === 'skipped') return 'skipped'
+    return 'failed'
+  }
+
+  private async submitData(tests: TestResult[]): Promise<void> {
     try {
-      await configureGit(getDefaultGitConfig())
-      const commitSha = process.env.GITHUB_SHA || await getCurrentSha()
-      const originalBranch = await getCurrentBranch()
+      const commitSha = process.env.GITHUB_SHA || await this.getCurrentSha()
+      const runData = this.buildRunData(commitSha, tests)
 
-      return {
-        commitSha,
-        originalBranch,
-        runData: {
-          runId: generateRunId(commitSha),
-          prNumber: this.options.prNumber,
-          commitSha,
-          createdAt: new Date().toISOString(),
-          tests: this.tests
-        }
-      }
-    } catch (error) {
-      this.logError('Failed to prepare context', error)
-      return null
-    }
-  }
-
-  private async saveToDataBranch(ctx: SubmitContext): Promise<boolean> {
-    const { dataBranch } = this.options
-
-    try {
-      await this.checkoutDataBranch(dataBranch)
-      await this.saveData(ctx)
-      await this.commitAndPush(ctx.runData.runId, dataBranch)
-      return true
-    } catch (error) {
-      this.logError('Failed to save data', error)
-      return false
-    }
-  }
-
-  private async checkoutDataBranch(branch: string): Promise<void> {
-    const exists = await fetchBranch(branch) || await branchExists(branch)
-    if (exists) {
-      await checkoutBranch(branch)
-    } else {
-      this.log(`Creating new branch: ${branch}`)
-      await createOrphanBranch(branch)
-    }
-  }
-
-  private async saveData(ctx: SubmitContext): Promise<void> {
-    const dataDir = 'data'
-    await ensureDir(dataDir)
-    await saveRunData(dataDir, generateFilename(ctx.commitSha), ctx.runData)
-    this.log(`Saved: ${dataDir}/${generateFilename(ctx.commitSha)}`)
-
-    await aggregate(dataDir)
-    this.log('Aggregation complete')
-  }
-
-  private async commitAndPush(runId: string, branch: string): Promise<void> {
-    await stageFiles(['data/'])
-    if (!await hasChanges()) {
-      this.log('No changes to commit')
-      return
-    }
-
-    const sha = await commit(`Add test data: ${runId}`)
-    if (sha) this.log(`Committed: ${sha.slice(0, 7)}`)
-
-    const pushed = await push(branch)
-    if (pushed) this.log(`Pushed to ${branch}`)
-  }
-
-  private async returnToOriginalBranch(branch: string): Promise<void> {
-    if (branch && branch !== this.options.dataBranch) {
-      try {
-        await checkoutBranch(branch)
-      } catch (error) {
-        this.logError('Failed to return to original branch', error)
-      }
-    }
-  }
-
-  private async deploy(): Promise<void> {
-    try {
-      await deployDashboard({
+      const result = await collectFromRunData({
+        runData,
         dataBranch: this.options.dataBranch,
+        deployAfterCollect: this.options.deploy,
         deployBranch: this.options.deployBranch
       })
+
+      if (result.success) {
+        this.log(result.message)
+        if (result.commitSha) {
+          this.log(`Committed: ${result.commitSha.slice(0, 7)}`)
+        }
+      } else {
+        this.logError(result.message)
+      }
     } catch (error) {
-      this.logError('Deploy failed', error)
+      this.logError('Failed to submit data', error)
     }
+  }
+
+  private buildRunData(commitSha: string, tests: TestResult[]): RunData {
+    return {
+      runId: `${commitSha.slice(0, 7)}-${Date.now()}`,
+      prNumber: this.options.prNumber,
+      commitSha,
+      createdAt: new Date().toISOString(),
+      tests
+    }
+  }
+
+  private async getCurrentSha(): Promise<string> {
+    const { exec } = await import('child_process')
+    const { promisify } = await import('util')
+    const execAsync = promisify(exec)
+    const { stdout } = await execAsync('git rev-parse HEAD')
+    return stdout.trim()
   }
 }

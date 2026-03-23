@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0.0",
+  "meta": {
+    "totalRuns": 1,
+    "lastAggregatedAt": "2026-03-23T09:18:13.069Z",
+    "processedFiles": [
+      "2026-03-23_091813_04c9014.json"
+    ]
+  },
+  "tests": {
+    "tests/app.test.ts tests/app.test.ts": {
+      "totalRuns": 5,
+      "passCount": 4,
+      "failCount": 1,
+      "flakyCount": 0,
+      "avgDurationMs": 302,
+      "p95DurationMs": 1502
+    }
+  }
+}

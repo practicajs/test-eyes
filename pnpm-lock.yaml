@@ -126,10 +126,6 @@ importers:
         version: 5.9.3
 
   collectors/playwright-reporter:
-    dependencies:
-      test-processing:
-        specifier: workspace:*
-        version: link:../../apps/test-processing
     devDependencies:
       '@playwright/test':
         specifier: ^1.52.0
@@ -140,6 +136,9 @@ importers:
       esbuild:
         specifier: ^0.27.3
         version: 0.27.3
+      test-processing:
+        specifier: workspace:*
+        version: link:../../apps/test-processing
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

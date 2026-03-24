@@ -9,12 +9,15 @@
     "build:action:collector": "esbuild apps/test-processing/scripts/action-collect.ts --bundle --platform=node --format=esm --outfile=action-dist/scripts/collector.mjs --external:fs --external:fs/promises --external:path --external:child_process --external:util",
     "build:action:deploy": "esbuild apps/test-processing/scripts/action-deploy.ts --bundle --platform=node --format=esm --outfile=action-dist/scripts/deploy.mjs --external:fs --external:fs/promises --external:path --external:child_process --external:util",
     "test": "turbo test",
+    "test:flow": "vitest run --config vitest.config.ts",
     "dev": "turbo dev",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "esbuild": "^0.27.3",
     "turbo": "^2.4.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
   }
 }

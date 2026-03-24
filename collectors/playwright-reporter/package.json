@@ -20,8 +20,6 @@
     "build": "tsc",
     "build:bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@playwright/test --external:child_process --external:util --external:fs --external:fs/promises --external:path && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "prepublishOnly": "pnpm build:bundle"
   },
   "peerDependencies": {
@@ -32,8 +30,7 @@
     "@types/node": "^22.0.0",
     "esbuild": "^0.27.3",
     "test-processing": "workspace:*",
-    "typescript": "^5.6.3",
-    "vitest": "^3.0.0"
+    "typescript": "^5.6.3"
   },
   "keywords": [
     "playwright",

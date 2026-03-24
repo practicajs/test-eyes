@@ -1,3 +1,9 @@
+/**
+ * Data factories for flow tests.
+ * Produce valid Playwright TestCase/TestResult objects with sensible defaults.
+ * Each test overrides only the fields relevant to its scenario.
+ */
+
 import type { TestCase, TestResult as PlaywrightTestResult } from '@playwright/test/reporter'
 
 interface TestCaseOptions {
@@ -15,10 +21,18 @@ interface TestResultOptions {
 
 let testIdCounter = 0
 
+export function resetTestIdCounter(): void {
+  testIdCounter = 0
+}
+
+/**
+ * Create a Playwright TestCase with sensible defaults.
+ * Override only what matters for your test scenario.
+ */
 export function makePlaywrightTestCase(options: TestCaseOptions = {}): TestCase {
   const id = options.id ?? `test-${++testIdCounter}`
   const title = options.title ?? 'Test'
-  const titlePath = options.titlePath ?? ['Suite', title]
+  const titlePath = options.titlePath ?? [title]
   const outcome = options.outcome ?? 'expected'
 
   return {
@@ -26,7 +40,6 @@ export function makePlaywrightTestCase(options: TestCaseOptions = {}): TestCase 
     title,
     titlePath: () => titlePath,
     outcome: () => outcome,
-    // Minimal implementation of other required fields
     ok: () => outcome === 'expected' || outcome === 'flaky',
     annotations: [],
     expectedStatus: 'passed',
@@ -41,12 +54,15 @@ export function makePlaywrightTestCase(options: TestCaseOptions = {}): TestCase 
   } as TestCase
 }
 
+/**
+ * Create a Playwright TestResult with sensible defaults.
+ * Override only what matters for your test scenario.
+ */
 export function makePlaywrightResult(options: TestResultOptions = {}): PlaywrightTestResult {
   return {
     status: options.status ?? 'passed',
     duration: options.duration ?? 100,
     retry: options.retry ?? 0,
-    // Minimal implementation of other required fields
     attachments: [],
     errors: [],
     startTime: new Date(),
@@ -57,8 +73,4 @@ export function makePlaywrightResult(options: TestResultOptions = {}): Playwrigh
     workerIndex: 0,
     annotations: []
   } as PlaywrightTestResult
-}
-
-export function resetTestIdCounter(): void {
-  testIdCounter = 0
 }

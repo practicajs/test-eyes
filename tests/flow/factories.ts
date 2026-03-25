@@ -1,23 +1,16 @@
 /**
  * Data factories for flow tests.
- * Produce valid Playwright TestCase/TestResult objects with sensible defaults.
- * Each test overrides only the fields relevant to its scenario.
+ *
+ * Principle: Only show fields that appear in assertions.
+ * Uses production types from Playwright and test-processing.
  */
 
 import type { TestCase, TestResult as PlaywrightTestResult, FullResult } from '@playwright/test/reporter'
+import type { AggregatedData, TestStats } from '../../apps/test-processing/src/types.js'
 
-interface TestCaseOptions {
-  id?: string
-  title?: string
-  titlePath?: string[]
-  outcome?: 'expected' | 'unexpected' | 'flaky' | 'skipped'
-}
-
-interface TestResultOptions {
-  status?: 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted'
-  duration?: number
-  retry?: number
-}
+// =============================================================================
+// Playwright Factories (using production types)
+// =============================================================================
 
 let testIdCounter = 0
 
@@ -26,21 +19,22 @@ export function resetTestIdCounter(): void {
 }
 
 /**
- * Create a Playwright TestCase with sensible defaults.
- * Override only what matters for your test scenario.
+ * Create a Playwright TestCase.
+ * Uses real Playwright types - only override what matters for your test.
  */
-export function makePlaywrightTestCase(options: TestCaseOptions = {}): TestCase {
-  const id = options.id ?? `test-${++testIdCounter}`
-  const title = options.title ?? 'Test'
-  const titlePath = options.titlePath ?? [title]
-  const outcome = options.outcome ?? 'expected'
+export function makeTest(
+  titlePath: string[],
+  outcome: 'expected' | 'flaky' | 'unexpected' = 'expected'
+): TestCase {
+  const title = titlePath[titlePath.length - 1]
 
+  // Build a minimal TestCase that satisfies Playwright's interface
   return {
-    id,
+    id: `test-${++testIdCounter}`,
     title,
     titlePath: () => titlePath,
     outcome: () => outcome,
-    ok: () => outcome === 'expected' || outcome === 'flaky',
+    ok: () => outcome !== 'unexpected',
     annotations: [],
     expectedStatus: 'passed',
     location: { file: 'test.spec.ts', line: 1, column: 1 },
@@ -55,14 +49,18 @@ export function makePlaywrightTestCase(options: TestCaseOptions = {}): TestCase 
 }
 
 /**
- * Create a Playwright TestResult with sensible defaults.
- * Override only what matters for your test scenario.
+ * Create a Playwright TestResult.
+ * Uses real Playwright types.
  */
-export function makePlaywrightResult(options: TestResultOptions = {}): PlaywrightTestResult {
+export function makeResult(
+  status: PlaywrightTestResult['status'],
+  duration: number,
+  retry = 0
+): PlaywrightTestResult {
   return {
-    status: options.status ?? 'passed',
-    duration: options.duration ?? 100,
-    retry: options.retry ?? 0,
+    status,
+    duration,
+    retry,
     attachments: [],
     errors: [],
     startTime: new Date(),
@@ -75,16 +73,60 @@ export function makePlaywrightResult(options: TestResultOptions = {}): Playwrigh
   } as PlaywrightTestResult
 }
 
-interface FullResultOptions {
-  status?: 'passed' | 'failed' | 'timedout' | 'interrupted'
+/**
+ * Create a Playwright FullResult for onEnd.
+ * Uses real Playwright types.
+ */
+export function endRun(status: FullResult['status'] = 'passed'): FullResult {
+  return { status } as FullResult
+}
+
+// =============================================================================
+// History Factories (using production types from test-processing)
+// =============================================================================
+
+/**
+ * Create history with specific test stats.
+ * Uses real AggregatedData and TestStats types.
+ * Only specify what you assert on - factory fills defaults.
+ */
+export function makeHistory(
+  tests: Record<string, Partial<TestStats>>,
+  totalRuns?: number
+): AggregatedData {
+  const calculatedRuns = totalRuns ?? Object.values(tests)[0]?.totalRuns ?? 1
+
+  const fullTests: Record<string, TestStats> = {}
+  for (const [name, partial] of Object.entries(tests)) {
+    fullTests[name] = {
+      totalRuns: partial.totalRuns ?? calculatedRuns,
+      passCount: partial.passCount ?? 0,
+      failCount: partial.failCount ?? 0,
+      flakyCount: partial.flakyCount ?? 0,
+      avgDurationMs: partial.avgDurationMs ?? 100,
+      p95DurationMs: partial.p95DurationMs ?? 100
+    }
+  }
+
+  return {
+    schemaVersion: '1.0.0',
+    meta: {
+      totalRuns: calculatedRuns,
+      lastAggregatedAt: '2024-01-01',
+      processedFiles: []
+    },
+    tests: fullTests
+  }
 }
 
 /**
- * Create a Playwright FullResult with sensible defaults.
- * Use in Act phase: reporter.onEnd(buildFullResult({ status: 'passed' }))
+ * Empty history (no previous runs).
+ * Returns valid AggregatedData structure.
  */
-export function buildFullResult(options: FullResultOptions = {}): FullResult {
+export function emptyHistory(): AggregatedData {
   return {
-    status: options.status ?? 'passed'
-  } as FullResult
+    schemaVersion: '1.0.0',
+    meta: { totalRuns: 0, lastAggregatedAt: null, processedFiles: [] },
+    tests: {}
+  }
 }

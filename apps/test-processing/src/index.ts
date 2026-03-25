@@ -17,7 +17,8 @@ export {
   isValidRunData,
   processTestRun,
   recalculateStats,
-  type AggregateResult
+  type AggregateResult,
+  type AggregateOptions
 } from './aggregate.js'
 
 // File Operations
@@ -55,7 +56,7 @@ export {
   getCurrentBranch,
   getCurrentSha,
   pushToGitHub,
-  type PushToGitHubOptions
+  type PushTestDataOptions
 } from './git-operations.js'
 
 // Deploy

@@ -48,11 +48,11 @@ async function runAggregate(args: string[]): Promise<void> {
   const dataDir = args[0] || 'data'
 
   console.log(`Aggregating data from: ${dataDir}`)
-  const result = await aggregate(dataDir)
+  const result = await aggregate({ dataDir })
 
   console.log(`✓ Aggregated ${result.totalRuns} runs, ${result.totalTests} tests`)
   console.log(`  New files processed: ${result.newFilesProcessed}`)
-  console.log(`  Output: ${result.outputFile}`)
+  console.log(`  Output: ${dataDir}/main-test-data.json`)
 }
 
 // ============================================================================

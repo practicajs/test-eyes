@@ -2,7 +2,6 @@ import path from 'path'
 import type { AggregatedData, TestStats, RunData } from './types.js'
 import {
   loadAggregatedData,
-  saveAggregatedData,
   findUnprocessedFiles,
   loadTestData
 } from './file-operations.js'
@@ -111,10 +110,21 @@ export interface AggregateResult {
   totalRuns: number
   totalTests: number
   newFilesProcessed: number
-  outputFile: string
+  data: AggregatedData
 }
 
-export async function aggregate(dataDir: string): Promise<AggregateResult> {
+export interface AggregateOptions {
+  dataDir: string
+  currentRunData?: RunData
+  currentRunFilename?: string
+}
+
+/**
+ * Aggregates test run data from existing files on disk.
+ * Does NOT write to disk - returns the aggregated data for the caller to handle.
+ */
+export async function aggregate(options: AggregateOptions): Promise<AggregateResult> {
+  const { dataDir, currentRunData, currentRunFilename } = options
   const outputFile = path.join(dataDir, 'main-test-data.json')
   const data = await loadAggregatedData(outputFile)
 
@@ -122,23 +132,13 @@ export async function aggregate(dataDir: string): Promise<AggregateResult> {
   const processedSet = new Set(data.meta.processedFiles)
   const newFiles = await findUnprocessedFiles(dataDir, processedSet)
 
-  if (newFiles.length === 0) {
-    return {
-      success: true,
-      totalRuns: data.meta.totalRuns,
-      totalTests: Object.keys(data.tests).length,
-      newFilesProcessed: 0,
-      outputFile
-    }
-  }
-
   // Reconstruct durations from existing stats
   const durations = new Map<string, number[]>()
   for (const [testName, stats] of Object.entries(data.tests)) {
     durations.set(testName, Array(stats.totalRuns).fill(stats.avgDurationMs))
   }
 
-  // Process each new file
+  // Process files from disk
   for (const filename of newFiles) {
     const filepath = path.join(dataDir, filename)
     const runData = await loadTestData(filepath)
@@ -150,16 +150,21 @@ export async function aggregate(dataDir: string): Promise<AggregateResult> {
     }
   }
 
+  // Process current run data if provided (not yet on disk)
+  if (currentRunData && currentRunFilename) {
+    if (!processedSet.has(currentRunFilename)) {
+      processTestRun(data, durations, currentRunData, currentRunFilename)
+    }
+  }
+
   recalculateStats(data, durations)
   data.meta.lastAggregatedAt = new Date().toISOString()
-
-  await saveAggregatedData(outputFile, data)
 
   return {
     success: true,
     totalRuns: data.meta.totalRuns,
     totalTests: Object.keys(data.tests).length,
-    newFilesProcessed: newFiles.length,
-    outputFile
+    newFilesProcessed: newFiles.length + (currentRunData ? 1 : 0),
+    data
   }
 }

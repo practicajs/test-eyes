@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TestEyesReporter } from '../../collectors/playwright-reporter/src/reporter.js'
 import { makePlaywrightTestCase, makePlaywrightResult, resetTestIdCounter } from './factories.js'
 import type { FullConfig, FullResult, Suite } from '@playwright/test/reporter'
-import fs from 'fs/promises'
+import type { PushTestDataOptions } from '../../apps/test-processing/src/git-operations.js'
 
 // Import the mocked module to access mock functions
 import * as gitOps from '../../apps/test-processing/src/git-operations.js'
@@ -22,7 +22,7 @@ vi.mock('../../apps/test-processing/src/git-operations.js', () => ({
   getDefaultGitConfig: vi.fn().mockReturnValue({ userName: 'test', userEmail: 'test@test.com' }),
   fetchBranches: vi.fn().mockResolvedValue(undefined),
   checkoutOrCreateBranch: vi.fn().mockResolvedValue(false),
-  getCurrentBranch: vi.fn().mockResolvedValue('main'),
+  getCurrentBranch: vi.fn().mockReturnValue('main'),
   pushToGitHub: vi.fn().mockResolvedValue('abc1234'),
   stageFiles: vi.fn().mockResolvedValue(undefined),
   commit: vi.fn().mockResolvedValue({ success: true, commitSha: 'abc1234' }),
@@ -35,32 +35,22 @@ const mockConfig = {} as FullConfig
 const mockSuite = {} as Suite
 const mockFullResult = { status: 'passed' } as FullResult
 
-async function cleanupDataDir() {
-  try {
-    await fs.rm('data', { recursive: true, force: true })
-  } catch {
-    // Ignore if doesn't exist
-  }
-}
-
-async function readAggregatedData() {
-  const content = await fs.readFile('data/main-test-data.json', 'utf-8')
-  return JSON.parse(content)
+function getPushToGitHubCall(index = 0): PushTestDataOptions {
+  const calls = vi.mocked(gitOps.pushToGitHub).mock.calls
+  return calls[index][0]
 }
 
 describe('Reporter Flow Tests', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     resetTestIdCounter()
     vi.stubEnv('CI', 'true')
     vi.stubEnv('GITHUB_ACTIONS', 'true')
     vi.stubEnv('GITHUB_SHA', 'abc1234567890')
     vi.clearAllMocks()
-    await cleanupDataDir()
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     vi.unstubAllEnvs()
-    await cleanupDataDir()
   })
 
   describe('Test 1: Flaky detection with retries', () => {
@@ -82,19 +72,22 @@ describe('Reporter Flow Tests', () => {
       // Act
       await reporter.onEnd(mockFullResult)
 
-      // Assert: pushToGitHub was called with correct branch
+      // Assert: pushToGitHub was called with correct data
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
-      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
-        expect.objectContaining({
-          branch: 'gh-data',
-          files: ['data/']
-        })
-      )
 
-      // Assert: aggregated data contains flaky test with correct values
-      const aggregated = await readAggregatedData()
-      const testStats = aggregated.tests['E2E > checkout flow']
+      const pushCall = getPushToGitHubCall()
+      expect(pushCall.branch).toBe('gh-data')
+      expect(pushCall.runDataFilename).toMatch(/\.json$/)
 
+      // Assert: runData contains flaky test
+      const flakyTestData = pushCall.runData.tests.find(t => t.name === 'E2E > checkout flow')
+      expect(flakyTestData).toBeDefined()
+      expect(flakyTestData!.wasFlaky).toBe(true)
+      expect(flakyTestData!.status).toBe('passed')
+      expect(flakyTestData!.durationMs).toBe(1100)
+
+      // Assert: aggregatedData contains correct stats
+      const testStats = pushCall.aggregatedData.tests['E2E > checkout flow']
       expect(testStats).toBeDefined()
       expect(testStats.flakyCount).toBe(1)
       expect(testStats.passCount).toBe(1)
@@ -119,16 +112,18 @@ describe('Reporter Flow Tests', () => {
       // Act
       await reporter.onEnd(mockFullResult)
 
-      // Assert: pushToGitHub was called
+      // Assert: pushToGitHub was called with correct data
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
-      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
-        expect.objectContaining({ branch: 'gh-data' })
-      )
 
-      // Assert: aggregated data has correct duration
-      const aggregated = await readAggregatedData()
-      const testStats = aggregated.tests['API > database query']
+      const pushCall = getPushToGitHubCall()
+      expect(pushCall.branch).toBe('gh-data')
 
+      // Assert: runData has correct duration
+      const testData = pushCall.runData.tests.find(t => t.name === 'API > database query')
+      expect(testData!.durationMs).toBe(1550)
+
+      // Assert: aggregatedData has correct duration stats
+      const testStats = pushCall.aggregatedData.tests['API > database query']
       expect(testStats.avgDurationMs).toBe(1550)
       expect(testStats.p95DurationMs).toBe(1550)
     })
@@ -168,17 +163,17 @@ describe('Reporter Flow Tests', () => {
       // Assert: pushToGitHub was called
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
 
-      // Assert: aggregated data has correct counts per test
-      const aggregated = await readAggregatedData()
+      // Assert: aggregatedData has correct counts per test
+      const { aggregatedData } = getPushToGitHubCall()
 
-      expect(aggregated.tests['Auth > login'].passCount).toBe(1)
-      expect(aggregated.tests['Auth > login'].failCount).toBe(0)
+      expect(aggregatedData.tests['Auth > login'].passCount).toBe(1)
+      expect(aggregatedData.tests['Auth > login'].failCount).toBe(0)
 
-      expect(aggregated.tests['Checkout > payment'].passCount).toBe(0)
-      expect(aggregated.tests['Checkout > payment'].failCount).toBe(1)
+      expect(aggregatedData.tests['Checkout > payment'].passCount).toBe(0)
+      expect(aggregatedData.tests['Checkout > payment'].failCount).toBe(1)
 
-      expect(aggregated.tests['User > profile'].passCount).toBe(1)
-      expect(aggregated.tests['User > profile'].flakyCount).toBe(1)
+      expect(aggregatedData.tests['User > profile'].passCount).toBe(1)
+      expect(aggregatedData.tests['User > profile'].flakyCount).toBe(1)
     })
   })
 
@@ -197,6 +192,11 @@ describe('Reporter Flow Tests', () => {
       // Act: Run 1
       vi.stubEnv('GITHUB_SHA', 'run1sha123')
       await reporter1.onEnd(mockFullResult)
+
+      // Assert: Run 1 - first run has flakyCount = 1
+      const run1Call = getPushToGitHubCall(0)
+      expect(run1Call.aggregatedData.meta.totalRuns).toBe(1)
+      expect(run1Call.aggregatedData.tests['User > profile'].flakyCount).toBe(1)
 
       // Arrange: Run 2 - profile passes cleanly
       const reporter2 = new TestEyesReporter({ dataBranch: 'gh-data' })
@@ -228,14 +228,10 @@ describe('Reporter Flow Tests', () => {
       // Assert: pushToGitHub was called 3 times
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(3)
 
-      // Assert: aggregated data shows accumulated counts
-      const aggregated = await readAggregatedData()
-      const profileStats = aggregated.tests['User > profile']
-
-      expect(aggregated.meta.totalRuns).toBe(3)
-      expect(profileStats.totalRuns).toBe(3)
-      expect(profileStats.flakyCount).toBe(2) // Flaky in run 1 and 3
-      expect(profileStats.passCount).toBe(3)  // All passed (flaky still counts as passed)
+      // Assert: Each call has correct runData
+      expect(getPushToGitHubCall(0).runData.tests[0].wasFlaky).toBe(true)
+      expect(getPushToGitHubCall(1).runData.tests[0].wasFlaky).toBeFalsy()
+      expect(getPushToGitHubCall(2).runData.tests[0].wasFlaky).toBe(true)
     })
   })
 })

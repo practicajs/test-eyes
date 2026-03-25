@@ -36,30 +36,32 @@ export async function collectFromRunData(
     await configureGit(getDefaultGitConfig())
     const originalBranch = await getCurrentBranch()
 
-    // Step 2: Fetch and checkout data branch
+    // Step 2: Fetch branch (no checkout yet - using git show to read data)
     console.log(`[test-eyes] Fetching branches: main, ${dataBranch}`)
     await fetchBranches(['main', dataBranch])
 
+    // Step 3: Generate filename once for consistency
+    const dataDir = 'data'
+    const runDataFilename = generateTestDataFilename(runData.commitSha)
+
+    // Step 4: Aggregate using git show (no checkout needed for reading)
+    console.log('[test-eyes] Running aggregation...')
+    const aggregateResult = await aggregate({
+      dataDir,
+      dataBranch, // fetch history via git show
+      currentRunData: runData,
+      currentRunFilename: runDataFilename
+    })
+    console.log(`[test-eyes] Aggregated ${aggregateResult.totalRuns} runs, ${aggregateResult.totalTests} tests`)
+
+    // Step 5: Now checkout for writing
     console.log(`[test-eyes] Checking out ${dataBranch}`)
     const isNew = await checkoutOrCreateBranch(dataBranch)
     if (isNew) {
       console.log(`[test-eyes] Created new branch: ${dataBranch}`)
     }
 
-    // Step 3: Generate filename once for consistency
-    const dataDir = 'data'
-    const runDataFilename = generateTestDataFilename(runData.commitSha)
-
-    // Step 4: Aggregate (pass runData directly - not on disk yet)
-    console.log('[test-eyes] Running aggregation...')
-    const aggregateResult = await aggregate({
-      dataDir,
-      currentRunData: runData,
-      currentRunFilename: runDataFilename
-    })
-    console.log(`[test-eyes] Aggregated ${aggregateResult.totalRuns} runs, ${aggregateResult.totalTests} tests`)
-
-    // Step 5: Commit and push via stubbable boundary (handles file writing)
+    // Step 6: Commit and push via stubbable boundary (handles file writing)
     const commitSha = await pushToGitHub({
       branch: dataBranch,
       message: `Add test data: ${runData.runId}`,
@@ -74,13 +76,10 @@ export async function collectFromRunData(
       console.log('[test-eyes] No changes to commit')
     }
 
-    // Step 6: Return to original branch
+    // Step 7: Return to original branch
     if (originalBranch && originalBranch !== dataBranch) {
       await checkoutOrCreateBranch(originalBranch)
     }
-
-    // Note: Deploy is handled separately by the action or CLI
-    // as it requires the frontend dist directory
 
     return {
       success: true,
@@ -130,29 +129,30 @@ export async function collectTestData(options: CollectOptions): Promise<CollectR
     // Step 2: Configure git
     await configureGit(getDefaultGitConfig())
 
-    // Step 3: Fetch branches
+    // Step 3: Fetch branches (no checkout yet)
     console.log(`Fetching branches: main, ${dataBranch}`)
     await fetchBranches(['main', dataBranch])
 
-    // Step 4: Checkout data branch
+    // Step 4: Generate filename once for consistency
+    const dataDir = 'data'
+    const runDataFilename = generateTestDataFilename(commitSha)
+
+    // Step 5: Aggregate using git show (no checkout needed for reading)
+    console.log('Running aggregation...')
+    const aggregateResult = await aggregate({
+      dataDir,
+      dataBranch,
+      currentRunData: runData,
+      currentRunFilename: runDataFilename
+    })
+    console.log(`Aggregated ${aggregateResult.totalRuns} runs, ${aggregateResult.totalTests} tests`)
+
+    // Step 6: Now checkout for writing
     console.log(`Checking out ${dataBranch}`)
     const isNew = await checkoutOrCreateBranch(dataBranch)
     if (isNew) {
       console.log(`Created new branch: ${dataBranch}`)
     }
-
-    // Step 5: Generate filename once for consistency
-    const dataDir = 'data'
-    const runDataFilename = generateTestDataFilename(commitSha)
-
-    // Step 6: Aggregate (pass runData directly - not on disk yet)
-    console.log('Running aggregation...')
-    const aggregateResult = await aggregate({
-      dataDir,
-      currentRunData: runData,
-      currentRunFilename: runDataFilename
-    })
-    console.log(`Aggregated ${aggregateResult.totalRuns} runs, ${aggregateResult.totalTests} tests`)
 
     // Step 7: Commit and push via stubbable boundary (handles file writing)
     const commitSha_ = await pushToGitHub({

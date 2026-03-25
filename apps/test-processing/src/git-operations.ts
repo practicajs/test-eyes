@@ -122,14 +122,43 @@ export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
   return true;
 }
 
+const EMPTY_AGGREGATED_DATA: AggregatedData = {
+  schemaVersion: "1.0.0",
+  meta: {
+    totalRuns: 0,
+    lastAggregatedAt: null,
+    processedFiles: [],
+  },
+  tests: {},
+};
+
 /**
- * Fetches aggregated data from disk (after branch checkout).
+ * Fetches aggregated data directly from a git branch using `git show`.
+ * No checkout required - reads file content directly from remote.
  * This is the stubbable boundary for testing history scenarios.
+ *
+ * If branch is empty, falls back to reading from disk.
  */
 export async function fetchAggregatedData(
-  filepath: string,
+  branch: string,
+  filepath: string = "data/main-test-data.json",
 ): Promise<AggregatedData> {
-  return loadFromDisk(filepath);
+  // Fallback to disk if no branch specified
+  if (!branch) {
+    return loadFromDisk(filepath);
+  }
+
+  const result = await runGitSafe(`show origin/${branch}:${filepath}`);
+
+  if (!result.success || !result.stdout.trim()) {
+    return { ...EMPTY_AGGREGATED_DATA };
+  }
+
+  try {
+    return JSON.parse(result.stdout) as AggregatedData;
+  } catch {
+    return { ...EMPTY_AGGREGATED_DATA };
+  }
 }
 
 // ============================================================================

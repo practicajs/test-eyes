@@ -112,6 +112,7 @@ export interface AggregateResult {
 
 export interface AggregateOptions {
   dataDir: string
+  dataBranch?: string
   currentRunData?: RunData
   currentRunFilename?: string
 }
@@ -121,9 +122,13 @@ export interface AggregateOptions {
  * Does NOT write to disk - returns the aggregated data for the caller to handle.
  */
 export async function aggregate(options: AggregateOptions): Promise<AggregateResult> {
-  const { dataDir, currentRunData, currentRunFilename } = options
-  const outputFile = path.join(dataDir, 'main-test-data.json')
-  const data = await fetchAggregatedData(outputFile)
+  const { dataDir, dataBranch, currentRunData, currentRunFilename } = options
+  const filepath = path.join(dataDir, 'main-test-data.json')
+
+  // Fetch existing data: from git branch if specified, otherwise from disk
+  const data = dataBranch
+    ? await fetchAggregatedData(dataBranch, filepath)
+    : await fetchAggregatedData('', filepath) // empty branch = read from disk fallback
 
   // Use Set for O(1) lookup
   const processedSet = new Set(data.meta.processedFiles)

@@ -10,6 +10,7 @@ import type {
 import {
   saveTestData,
   saveAggregatedData,
+  loadAggregatedData as loadFromDisk,
   ensureDir,
 } from "./file-operations.js";
 
@@ -119,6 +120,16 @@ export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
   // Try 3: create new orphan branch
   await runGit(`checkout --orphan ${branch}`);
   return true;
+}
+
+/**
+ * Fetches aggregated data from disk (after branch checkout).
+ * This is the stubbable boundary for testing history scenarios.
+ */
+export async function fetchAggregatedData(
+  filepath: string,
+): Promise<AggregatedData> {
+  return loadFromDisk(filepath);
 }
 
 // ============================================================================

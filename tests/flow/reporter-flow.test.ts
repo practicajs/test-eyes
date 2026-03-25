@@ -16,6 +16,13 @@ import type { PushTestDataOptions } from '../../apps/test-processing/src/git-ope
 // Import the mocked module to access mock functions
 import * as gitOps from '../../apps/test-processing/src/git-operations.js'
 
+// Default empty history - tests can override with mockResolvedValueOnce
+const emptyAggregatedData = () => ({
+  schemaVersion: '1.0.0',
+  meta: { totalRuns: 0, lastAggregatedAt: null, processedFiles: [] },
+  tests: {}
+})
+
 // Stub only git operations - the external boundary
 vi.mock('../../apps/test-processing/src/git-operations.js', () => ({
   configureGit: vi.fn().mockResolvedValue(undefined),
@@ -23,6 +30,7 @@ vi.mock('../../apps/test-processing/src/git-operations.js', () => ({
   fetchBranches: vi.fn().mockResolvedValue(undefined),
   checkoutOrCreateBranch: vi.fn().mockResolvedValue(false),
   getCurrentBranch: vi.fn().mockReturnValue('main'),
+  fetchAggregatedData: vi.fn().mockImplementation(() => Promise.resolve(emptyAggregatedData())),
   pushToGitHub: vi.fn().mockResolvedValue('abc1234'),
   stageFiles: vi.fn().mockResolvedValue(undefined),
   commit: vi.fn().mockResolvedValue({ success: true, commitSha: 'abc1234' }),
@@ -177,7 +185,66 @@ describe('Reporter Flow Tests', () => {
     })
   })
 
-  describe('Test 4: Multiple runs accumulate flaky count', () => {
+  describe('Test 4: New run merges with existing history', () => {
+    it('when history already contains a test, running it again accumulates results', async () => {
+      // Arrange: Stub existing history in gh-data
+      vi.mocked(gitOps.fetchAggregatedData).mockResolvedValueOnce({
+        schemaVersion: '1.0.0',
+        meta: { totalRuns: 5, lastAggregatedAt: '2024-01-01', processedFiles: ['old1.json', 'old2.json'] },
+        tests: {
+          'Auth > login': { totalRuns: 5, passCount: 5, failCount: 0, flakyCount: 0, avgDurationMs: 200, p95DurationMs: 220 }
+        }
+      })
+
+      const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
+      const loginTest = makePlaywrightTestCase({
+        id: 'login', title: 'login', titlePath: ['Auth', 'login'], outcome: 'unexpected'
+      })
+
+      reporter.onBegin(mockConfig, mockSuite)
+      reporter.onTestEnd(loginTest, makePlaywrightResult({ status: 'failed', duration: 250, retry: 0 }))
+
+      // Act
+      await reporter.onEnd(mockFullResult)
+
+      // Assert: pushToGitHub receives merged data (history + new run)
+      expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
+
+      const { aggregatedData } = getPushToGitHubCall()
+      expect(aggregatedData.meta.totalRuns).toBe(6) // 5 + 1
+      expect(aggregatedData.tests['Auth > login'].totalRuns).toBe(6)
+      expect(aggregatedData.tests['Auth > login'].passCount).toBe(5) // unchanged from history
+      expect(aggregatedData.tests['Auth > login'].failCount).toBe(1) // 0 + 1 new failure
+    })
+
+    it('when history has no tests and new test is added, aggregated data contains new test', async () => {
+      // Arrange: Stub empty history
+      vi.mocked(gitOps.fetchAggregatedData).mockResolvedValueOnce({
+        schemaVersion: '1.0.0',
+        meta: { totalRuns: 3, lastAggregatedAt: '2024-01-01', processedFiles: ['old.json'] },
+        tests: {} // No tests in history
+      })
+
+      const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
+      const newTest = makePlaywrightTestCase({
+        id: 'new-test', title: 'new feature', titlePath: ['Feature', 'new feature'], outcome: 'expected'
+      })
+
+      reporter.onBegin(mockConfig, mockSuite)
+      reporter.onTestEnd(newTest, makePlaywrightResult({ status: 'passed', duration: 100, retry: 0 }))
+
+      // Act
+      await reporter.onEnd(mockFullResult)
+
+      // Assert: pushToGitHub has both history meta + new test
+      const { aggregatedData } = getPushToGitHubCall()
+      expect(aggregatedData.meta.totalRuns).toBe(4) // 3 + 1
+      expect(aggregatedData.tests['Feature > new feature']).toBeDefined()
+      expect(aggregatedData.tests['Feature > new feature'].passCount).toBe(1)
+    })
+  })
+
+  describe('Test 5: Multiple runs accumulate flaky count', () => {
     it('when same test is flaky across multiple runs, pushToGitHub accumulates flakyCount', async () => {
       // Arrange: Run 1 - profile is flaky
       const reporter1 = new TestEyesReporter({ dataBranch: 'gh-data' })

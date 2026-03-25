@@ -1,10 +1,7 @@
 import path from 'path'
 import type { AggregatedData, TestStats, RunData } from './types.js'
-import {
-  loadAggregatedData,
-  findUnprocessedFiles,
-  loadTestData
-} from './file-operations.js'
+import { findUnprocessedFiles, loadTestData } from './file-operations.js'
+import { fetchAggregatedData } from './git-operations.js'
 
 // ============================================================================
 // Statistics Calculation
@@ -126,7 +123,7 @@ export interface AggregateOptions {
 export async function aggregate(options: AggregateOptions): Promise<AggregateResult> {
   const { dataDir, currentRunData, currentRunFilename } = options
   const outputFile = path.join(dataDir, 'main-test-data.json')
-  const data = await loadAggregatedData(outputFile)
+  const data = await fetchAggregatedData(outputFile)
 
   // Use Set for O(1) lookup
   const processedSet = new Set(data.meta.processedFiles)

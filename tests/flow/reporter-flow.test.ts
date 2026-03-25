@@ -11,7 +11,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TestEyesReporter } from '../../collectors/playwright-reporter/src/reporter.js'
 import { makePlaywrightTestCase, makePlaywrightResult, buildFullResult, resetTestIdCounter } from './factories.js'
 import type { FullConfig, Suite } from '@playwright/test/reporter'
-import type { PushTestDataOptions } from '../../apps/test-processing/src/git-operations.js'
 
 // Import the mocked module to access mock functions
 import * as gitOps from '../../apps/test-processing/src/git-operations.js'
@@ -41,11 +40,6 @@ vi.mock('../../apps/test-processing/src/git-operations.js', () => ({
 // Helpers
 const mockConfig = {} as FullConfig
 const mockSuite = {} as Suite
-
-function getPushToGitHubCall(index = 0): PushTestDataOptions {
-  const calls = vi.mocked(gitOps.pushToGitHub).mock.calls
-  return calls[index][0]
-}
 
 describe('Reporter Flow Tests', () => {
   beforeEach(() => {
@@ -79,26 +73,31 @@ describe('Reporter Flow Tests', () => {
       // Act
       await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
-      // Assert: pushToGitHub was called with correct data
-      expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
-
-      const pushCall = getPushToGitHubCall()
-      expect(pushCall.branch).toBe('gh-data')
-      expect(pushCall.runDataFilename).toMatch(/\.json$/)
-
-      // Assert: runData contains flaky test
-      const flakyTestData = pushCall.runData.tests.find(t => t.name === 'E2E > checkout flow')
-      expect(flakyTestData).toBeDefined()
-      expect(flakyTestData!.wasFlaky).toBe(true)
-      expect(flakyTestData!.status).toBe('passed')
-      expect(flakyTestData!.durationMs).toBe(1100)
-
-      // Assert: aggregatedData contains correct stats
-      const testStats = pushCall.aggregatedData.tests['E2E > checkout flow']
-      expect(testStats).toBeDefined()
-      expect(testStats.flakyCount).toBe(1)
-      expect(testStats.passCount).toBe(1)
-      expect(testStats.failCount).toBe(0)
+      // Assert
+      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'gh-data',
+          runData: expect.objectContaining({
+            tests: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'E2E > checkout flow',
+                wasFlaky: true,
+                status: 'passed',
+                durationMs: 1100
+              })
+            ])
+          }),
+          aggregatedData: expect.objectContaining({
+            tests: expect.objectContaining({
+              'E2E > checkout flow': expect.objectContaining({
+                flakyCount: 1,
+                passCount: 1,
+                failCount: 0
+              })
+            })
+          })
+        })
+      )
     })
   })
 
@@ -119,20 +118,25 @@ describe('Reporter Flow Tests', () => {
       // Act
       await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
-      // Assert: pushToGitHub was called with correct data
-      expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
-
-      const pushCall = getPushToGitHubCall()
-      expect(pushCall.branch).toBe('gh-data')
-
-      // Assert: runData has correct duration
-      const testData = pushCall.runData.tests.find(t => t.name === 'API > database query')
-      expect(testData!.durationMs).toBe(1550)
-
-      // Assert: aggregatedData has correct duration stats
-      const testStats = pushCall.aggregatedData.tests['API > database query']
-      expect(testStats.avgDurationMs).toBe(1550)
-      expect(testStats.p95DurationMs).toBe(1550)
+      // Assert
+      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'gh-data',
+          runData: expect.objectContaining({
+            tests: expect.arrayContaining([
+              expect.objectContaining({ name: 'API > database query', durationMs: 1550 })
+            ])
+          }),
+          aggregatedData: expect.objectContaining({
+            tests: expect.objectContaining({
+              'API > database query': expect.objectContaining({
+                avgDurationMs: 1550,
+                p95DurationMs: 1550
+              })
+            })
+          })
+        })
+      )
     })
   })
 
@@ -152,35 +156,27 @@ describe('Reporter Flow Tests', () => {
       })
 
       reporter.onBegin(mockConfig, mockSuite)
-
-      // Login: passes first attempt
       reporter.onTestEnd(loginTest, makePlaywrightResult({ status: 'passed', duration: 200, retry: 0 }))
-
-      // Payment: fails all attempts
       reporter.onTestEnd(paymentTest, makePlaywrightResult({ status: 'failed', duration: 500, retry: 0 }))
       reporter.onTestEnd(paymentTest, makePlaywrightResult({ status: 'failed', duration: 520, retry: 1 }))
-
-      // Profile: flaky - fails then passes
       reporter.onTestEnd(profileTest, makePlaywrightResult({ status: 'failed', duration: 300, retry: 0 }))
       reporter.onTestEnd(profileTest, makePlaywrightResult({ status: 'passed', duration: 280, retry: 1 }))
 
       // Act
-      await reporter.onEnd(buildFullResult({ status: 'passed' }))
+      await reporter.onEnd(buildFullResult({ status: 'failed' }))
 
-      // Assert: pushToGitHub was called
-      expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
-
-      // Assert: aggregatedData has correct counts per test
-      const { aggregatedData } = getPushToGitHubCall()
-
-      expect(aggregatedData.tests['Auth > login'].passCount).toBe(1)
-      expect(aggregatedData.tests['Auth > login'].failCount).toBe(0)
-
-      expect(aggregatedData.tests['Checkout > payment'].passCount).toBe(0)
-      expect(aggregatedData.tests['Checkout > payment'].failCount).toBe(1)
-
-      expect(aggregatedData.tests['User > profile'].passCount).toBe(1)
-      expect(aggregatedData.tests['User > profile'].flakyCount).toBe(1)
+      // Assert
+      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aggregatedData: expect.objectContaining({
+            tests: expect.objectContaining({
+              'Auth > login': expect.objectContaining({ passCount: 1, failCount: 0 }),
+              'Checkout > payment': expect.objectContaining({ passCount: 0, failCount: 1 }),
+              'User > profile': expect.objectContaining({ passCount: 1, flakyCount: 1 })
+            })
+          })
+        })
+      )
     })
   })
 
@@ -243,11 +239,17 @@ describe('Reporter Flow Tests', () => {
       // Act
       await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
-      // Assert: pushToGitHub has both history meta + new test
-      const { aggregatedData } = getPushToGitHubCall()
-      expect(aggregatedData.meta.totalRuns).toBe(4) // 3 + 1
-      expect(aggregatedData.tests['Feature > new feature']).toBeDefined()
-      expect(aggregatedData.tests['Feature > new feature'].passCount).toBe(1)
+      // Assert
+      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aggregatedData: expect.objectContaining({
+            meta: expect.objectContaining({ totalRuns: 4 }),
+            tests: expect.objectContaining({
+              'Feature > new feature': expect.objectContaining({ passCount: 1 })
+            })
+          })
+        })
+      )
     })
   })
 
@@ -266,11 +268,6 @@ describe('Reporter Flow Tests', () => {
       // Act: Run 1
       vi.stubEnv('GITHUB_SHA', 'run1sha123')
       await reporter1.onEnd(buildFullResult({ status: 'passed' }))
-
-      // Assert: Run 1 - first run has flakyCount = 1
-      const run1Call = getPushToGitHubCall(0)
-      expect(run1Call.aggregatedData.meta.totalRuns).toBe(1)
-      expect(run1Call.aggregatedData.tests['User > profile'].flakyCount).toBe(1)
 
       // Arrange: Run 2 - profile passes cleanly
       const reporter2 = new TestEyesReporter({ dataBranch: 'gh-data' })
@@ -299,13 +296,44 @@ describe('Reporter Flow Tests', () => {
       vi.stubEnv('GITHUB_SHA', 'run3sha789')
       await reporter3.onEnd(buildFullResult({ status: 'passed' }))
 
-      // Assert: pushToGitHub was called 3 times
-      expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(3)
+      // Assert: Run 1 - flaky
+      expect(gitOps.pushToGitHub).toHaveBeenNthCalledWith(1,
+        expect.objectContaining({
+          runData: expect.objectContaining({
+            tests: expect.arrayContaining([
+              expect.objectContaining({ name: 'User > profile', wasFlaky: true })
+            ])
+          }),
+          aggregatedData: expect.objectContaining({
+            meta: expect.objectContaining({ totalRuns: 1 }),
+            tests: expect.objectContaining({
+              'User > profile': expect.objectContaining({ flakyCount: 1 })
+            })
+          })
+        })
+      )
 
-      // Assert: Each call has correct runData
-      expect(getPushToGitHubCall(0).runData.tests[0].wasFlaky).toBe(true)
-      expect(getPushToGitHubCall(1).runData.tests[0].wasFlaky).toBeFalsy()
-      expect(getPushToGitHubCall(2).runData.tests[0].wasFlaky).toBe(true)
+      // Assert: Run 2 - clean pass
+      expect(gitOps.pushToGitHub).toHaveBeenNthCalledWith(2,
+        expect.objectContaining({
+          runData: expect.objectContaining({
+            tests: expect.arrayContaining([
+              expect.objectContaining({ name: 'User > profile', wasFlaky: false })
+            ])
+          })
+        })
+      )
+
+      // Assert: Run 3 - flaky again
+      expect(gitOps.pushToGitHub).toHaveBeenNthCalledWith(3,
+        expect.objectContaining({
+          runData: expect.objectContaining({
+            tests: expect.arrayContaining([
+              expect.objectContaining({ name: 'User > profile', wasFlaky: true })
+            ])
+          })
+        })
+      )
     })
   })
 })

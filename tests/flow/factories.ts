@@ -4,7 +4,7 @@
  * Each test overrides only the fields relevant to its scenario.
  */
 
-import type { TestCase, TestResult as PlaywrightTestResult } from '@playwright/test/reporter'
+import type { TestCase, TestResult as PlaywrightTestResult, FullResult } from '@playwright/test/reporter'
 
 interface TestCaseOptions {
   id?: string
@@ -73,4 +73,18 @@ export function makePlaywrightResult(options: TestResultOptions = {}): Playwrigh
     workerIndex: 0,
     annotations: []
   } as PlaywrightTestResult
+}
+
+interface FullResultOptions {
+  status?: 'passed' | 'failed' | 'timedout' | 'interrupted'
+}
+
+/**
+ * Create a Playwright FullResult with sensible defaults.
+ * Use in Act phase: reporter.onEnd(buildFullResult({ status: 'passed' }))
+ */
+export function buildFullResult(options: FullResultOptions = {}): FullResult {
+  return {
+    status: options.status ?? 'passed'
+  } as FullResult
 }

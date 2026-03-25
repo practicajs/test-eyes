@@ -9,8 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TestEyesReporter } from '../../collectors/playwright-reporter/src/reporter.js'
-import { makePlaywrightTestCase, makePlaywrightResult, resetTestIdCounter } from './factories.js'
-import type { FullConfig, FullResult, Suite } from '@playwright/test/reporter'
+import { makePlaywrightTestCase, makePlaywrightResult, buildFullResult, resetTestIdCounter } from './factories.js'
+import type { FullConfig, Suite } from '@playwright/test/reporter'
 import type { PushTestDataOptions } from '../../apps/test-processing/src/git-operations.js'
 
 // Import the mocked module to access mock functions
@@ -41,7 +41,6 @@ vi.mock('../../apps/test-processing/src/git-operations.js', () => ({
 // Helpers
 const mockConfig = {} as FullConfig
 const mockSuite = {} as Suite
-const mockFullResult = { status: 'passed' } as FullResult
 
 function getPushToGitHubCall(index = 0): PushTestDataOptions {
   const calls = vi.mocked(gitOps.pushToGitHub).mock.calls
@@ -78,7 +77,7 @@ describe('Reporter Flow Tests', () => {
       reporter.onTestEnd(flakyTest, makePlaywrightResult({ status: 'passed', duration: 1100, retry: 2 }))
 
       // Act
-      await reporter.onEnd(mockFullResult)
+      await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
       // Assert: pushToGitHub was called with correct data
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
@@ -118,7 +117,7 @@ describe('Reporter Flow Tests', () => {
       reporter.onTestEnd(slowTest, makePlaywrightResult({ status: 'passed', duration: 1550, retry: 0 }))
 
       // Act
-      await reporter.onEnd(mockFullResult)
+      await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
       // Assert: pushToGitHub was called with correct data
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
@@ -166,7 +165,7 @@ describe('Reporter Flow Tests', () => {
       reporter.onTestEnd(profileTest, makePlaywrightResult({ status: 'passed', duration: 280, retry: 1 }))
 
       // Act
-      await reporter.onEnd(mockFullResult)
+      await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
       // Assert: pushToGitHub was called
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
@@ -205,16 +204,24 @@ describe('Reporter Flow Tests', () => {
       reporter.onTestEnd(loginTest, makePlaywrightResult({ status: 'failed', duration: 250, retry: 0 }))
 
       // Act
-      await reporter.onEnd(mockFullResult)
+      await reporter.onEnd(buildFullResult({ status: 'failed' }))
 
       // Assert: pushToGitHub receives merged data (history + new run)
-      expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(1)
-
-      const { aggregatedData } = getPushToGitHubCall()
-      expect(aggregatedData.meta.totalRuns).toBe(6) // 5 + 1
-      expect(aggregatedData.tests['Auth > login'].totalRuns).toBe(6)
-      expect(aggregatedData.tests['Auth > login'].passCount).toBe(5) // unchanged from history
-      expect(aggregatedData.tests['Auth > login'].failCount).toBe(1) // 0 + 1 new failure
+      expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'gh-data',
+          aggregatedData: expect.objectContaining({
+            meta: expect.objectContaining({ totalRuns: 6 }),
+            tests: expect.objectContaining({
+              'Auth > login': expect.objectContaining({
+                totalRuns: 6,
+                passCount: 5,
+                failCount: 1
+              })
+            })
+          })
+        })
+      )
     })
 
     it('when history has no tests and new test is added, aggregated data contains new test', async () => {
@@ -234,7 +241,7 @@ describe('Reporter Flow Tests', () => {
       reporter.onTestEnd(newTest, makePlaywrightResult({ status: 'passed', duration: 100, retry: 0 }))
 
       // Act
-      await reporter.onEnd(mockFullResult)
+      await reporter.onEnd(buildFullResult({ status: 'passed' }))
 
       // Assert: pushToGitHub has both history meta + new test
       const { aggregatedData } = getPushToGitHubCall()
@@ -258,7 +265,7 @@ describe('Reporter Flow Tests', () => {
 
       // Act: Run 1
       vi.stubEnv('GITHUB_SHA', 'run1sha123')
-      await reporter1.onEnd(mockFullResult)
+      await reporter1.onEnd(buildFullResult({ status: 'passed' }))
 
       // Assert: Run 1 - first run has flakyCount = 1
       const run1Call = getPushToGitHubCall(0)
@@ -276,7 +283,7 @@ describe('Reporter Flow Tests', () => {
 
       // Act: Run 2
       vi.stubEnv('GITHUB_SHA', 'run2sha456')
-      await reporter2.onEnd(mockFullResult)
+      await reporter2.onEnd(buildFullResult({ status: 'passed' }))
 
       // Arrange: Run 3 - profile is flaky again
       const reporter3 = new TestEyesReporter({ dataBranch: 'gh-data' })
@@ -290,7 +297,7 @@ describe('Reporter Flow Tests', () => {
 
       // Act: Run 3
       vi.stubEnv('GITHUB_SHA', 'run3sha789')
-      await reporter3.onEnd(mockFullResult)
+      await reporter3.onEnd(buildFullResult({ status: 'passed' }))
 
       // Assert: pushToGitHub was called 3 times
       expect(gitOps.pushToGitHub).toHaveBeenCalledTimes(3)

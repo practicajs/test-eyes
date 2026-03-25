@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'util'
-import { deployDashboard, aggregate } from '../src/index.js'
+import { deployDashboard, aggregate, saveAggregatedData } from '../src/index.js'
 
 // ============================================================================
 // CLI Commands
@@ -46,13 +46,17 @@ async function runDeploy(args: string[]): Promise<void> {
 
 async function runAggregate(args: string[]): Promise<void> {
   const dataDir = args[0] || 'data'
+  const outputFile = `${dataDir}/main-test-data.json`
 
   console.log(`Aggregating data from: ${dataDir}`)
   const result = await aggregate({ dataDir })
 
+  // Save aggregated data to disk
+  await saveAggregatedData(outputFile, result.data)
+
   console.log(`✓ Aggregated ${result.totalRuns} runs, ${result.totalTests} tests`)
   console.log(`  New files processed: ${result.newFilesProcessed}`)
-  console.log(`  Output: ${dataDir}/main-test-data.json`)
+  console.log(`  Output: ${outputFile}`)
 }
 
 // ============================================================================

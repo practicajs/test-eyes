@@ -1,201 +1,272 @@
-import { useEffect, useState } from 'react'
-import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender, createColumnHelper } from '@tanstack/react-table'
-import type { SortingState } from '@tanstack/react-table'
-import { Title } from '@test-eyes/design-system'
+import { useState } from 'react'
+import { Title, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@test-eyes/design-system'
 import { SearchInput } from './components/SearchInput'
+import { Tabs } from './components/Tabs'
+import { useTestData } from './hooks/useTestData'
 import { useTestFilter } from './hooks/useTestFilter'
+import type { TestRow } from './types'
 
-//Yoni: Create /src/pages
-interface AggregatedData {
-  schemaVersion: string
-  meta: {
-    totalRuns: number
-    lastAggregatedAt: string
-    processedFiles: string[]
-  }
-  tests: Record<string, TestStats>
-}
+type TabId = 'slowest' | 'fastest' | 'flaky' | 'flaky-by-category'
 
-interface TestStats {
-  totalRuns: number
-  passCount: number
-  failCount: number
-  avgDurationMs: number
-  p95DurationMs: number
-}
-
-// These types 👆 are quite similar, use a union type?
-interface TestRow {
-  name: string
-  totalRuns: number
-  passCount: number
-  failCount: number
-  avgDurationMs: number
-  p95DurationMs: number
-}
-
-const columnHelper = createColumnHelper<TestRow>()
-
-const overviewColumns = [
-  columnHelper.accessor('name', { header: 'Test Name', cell: info => info.getValue() }),
-  columnHelper.accessor('avgDurationMs', {
-    header: 'Avg Time (s)',
-    cell: info => (info.getValue() / 1000).toFixed(2),
-  }),
-  columnHelper.accessor('failCount', { header: 'Failures', cell: info => info.getValue() }),
-  columnHelper.accessor('totalRuns', { header: 'Runs', cell: info => info.getValue() }),
-]
-
-const slowestColumns = [
-  columnHelper.accessor('name', { header: 'Test Name', cell: info => info.getValue() }),
-  columnHelper.accessor('p95DurationMs', {
-    header: 'p95 Time (s)',
-    cell: info => (info.getValue() / 1000).toFixed(2),
-  }),
-  columnHelper.accessor('avgDurationMs', {
-    header: 'Avg Time (s)',
-    cell: info => (info.getValue() / 1000).toFixed(2),
-  }),
-  columnHelper.accessor('totalRuns', { header: 'Runs', cell: info => info.getValue() }),
+const tabs = [
+  { id: 'slowest' as TabId, label: 'Slowest Tests' },
+  { id: 'fastest' as TabId, label: 'Fastest Tests' },
+  { id: 'flaky' as TabId, label: 'Flaky Tests' },
+  { id: 'flaky-by-category' as TabId, label: 'Flaky by Category' },
 ]
 
 export default function App() {
-  const [data, setData] = useState<TestRow[]>([])
-  const [meta, setMeta] = useState<AggregatedData['meta'] | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, meta, loading, error } = useTestData()
   const [searchQuery, setSearchQuery] = useState('')
-  const [overviewSorting, setOverviewSorting] = useState<SortingState>([])
-  const [slowestSorting, setSllowestSorting] = useState<SortingState>([{ id: 'p95DurationMs', desc: true }])
+  const [activeTab, setActiveTab] = useState<TabId>('slowest')
 
   const filteredData = useTestFilter(data, searchQuery)
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const baseUrl = `${import.meta.env.BASE_URL}data`
-        // Yoni: Let's use TanStack Query, then catch+finally are not needed #low
-        const res = await fetch(`${baseUrl}/main-test-data.json`)
-
-        if (!res.ok) {
-          // Fallback: try old format
-          throw new Error('No aggregated data yet - waiting for aggregation to run')
-        }
-
-        const aggregated: AggregatedData = await res.json()
-
-        const rows: TestRow[] = Object.entries(aggregated.tests).map(([name, stats]) => ({
-          name,
-          ...stats
-        }))
-
-        setData(rows)
-        setMeta(aggregated.meta)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unknown error')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
-  }, [])
-
-  // Yoni: Important, a huge file, let's break down into components? #high
-
-  const overviewTable = useReactTable({
-    data: filteredData,
-    columns: overviewColumns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    state: { sorting: overviewSorting },
-    onSortingChange: setOverviewSorting,
-  })
-
-  const slowestTable = useReactTable({
-    data: filteredData,
-    columns: slowestColumns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    state: { sorting: slowestSorting },
-    onSortingChange: setSllowestSorting,
-  })
-
-  const renderTable = (table: ReturnType<typeof useReactTable<TestRow>>) => (
-    // Yoni: The design system already exports Table/TableRow/TableHead/TableCell — use those instead of raw HTML with duplicated styles
-    <table className="w-full border-collapse">
-      <thead>
-        {table.getHeaderGroups().map(hg => (
-          <tr key={hg.id} className="border-b border-gray-700">
-            {hg.headers.map(h => (
-              <th
-                key={h.id}
-                className="text-left p-3 font-semibold cursor-pointer hover:bg-gray-800"
-                onClick={h.column.getToggleSortingHandler()}
-              >
-                {flexRender(h.column.columnDef.header, h.getContext())}
-                {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map(row => (
-          <tr key={row.id} className="border-b border-gray-800 hover:bg-gray-800">
-            {row.getVisibleCells().map(cell => (
-              <td key={cell.id} className="p-3">
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
+  const flakyTests = filteredData.filter(t => t.flakyCount > 0)
+  const tabsWithCounts = tabs.map(tab => ({
+    ...tab,
+    count: tab.id === 'flaky' || tab.id === 'flaky-by-category' ? flakyTests.length : undefined
+  }))
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <Title size="h2" className="mb-2">Test Eyes Dashboard</Title>
-      {meta && (
-        <p className="text-gray-400 mb-6">
-          {meta.totalRuns} runs | Last updated: {new Date(meta.lastAggregatedAt).toLocaleString()}
-        </p>
-      )}
-
-      {!loading && !error && data.length > 0 && (
-        <div className="mb-6 max-w-md">
-          <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search tests..."
-          />
+    <div className="min-h-screen bg-background text-foreground font-sans">
+      <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
+        <div className="mx-auto max-w-6xl px-8 py-4">
+          <Title size="h2" className="text-foreground">Test Eyes Dashboard</Title>
+          {meta && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {meta.totalRuns} runs | Last updated: {new Date(meta.lastAggregatedAt).toLocaleString()}
+            </p>
+          )}
         </div>
-      )}
+      </header>
 
-      {loading && <p>Loading...</p>}
-      {error && <p className="text-red-400">Error: {error}</p>}
+      <main className="mx-auto max-w-6xl px-8 py-8">
+        {loading && <LoadingState />}
+        {error && <ErrorState message={error} />}
 
-      {!loading && !error && filteredData.length > 0 && (
-        <>
-          <section className="mb-12">
-            <h2 className="text-xl font-semibold mb-4">Test Overview</h2>
-            {renderTable(overviewTable)}
-          </section>
+        {!loading && !error && data.length > 0 && (
+          <>
+            <div className="mb-6 max-w-md">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search tests..."
+              />
+            </div>
 
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Slowest Tests (by p95)</h2>
-            {renderTable(slowestTable)}
-          </section>
-        </>
-      )}
+            <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+              <div className="px-6 pt-4">
+                <Tabs tabs={tabsWithCounts} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
+              </div>
 
-      {!loading && !error && data.length === 0 && (
-        <p className="text-gray-500 mt-4">No test data yet. Run some PRs to collect data.</p>
-      )}
+              <div className="p-6">
+                {activeTab === 'slowest' && <SlowestTable data={filteredData} />}
+                {activeTab === 'fastest' && <FastestTable data={filteredData} />}
+                {activeTab === 'flaky' && <FlakyTable data={flakyTests} />}
+                {activeTab === 'flaky-by-category' && <FlakyByCategoryTable data={flakyTests} />}
+              </div>
+            </div>
 
-      {!loading && !error && data.length > 0 && filteredData.length === 0 && (
-        <p className="text-gray-500 mt-4">No tests match "{searchQuery}"</p>
-      )}
+            {filteredData.length === 0 && (
+              <p className="text-muted-foreground mt-4">No tests match "{searchQuery}"</p>
+            )}
+          </>
+        )}
+
+        {!loading && !error && data.length === 0 && <EmptyState />}
+      </main>
     </div>
   )
+}
+
+function LoadingState() {
+  return <p className="text-muted-foreground">Loading...</p>
+}
+
+function ErrorState({ message }: { message: string }) {
+  return <p className="text-destructive">Error: {message}</p>
+}
+
+function EmptyState() {
+  return <p className="text-muted-foreground mt-4">No test data yet. Run some PRs to collect data.</p>
+}
+
+function SlowestTable({ data }: { data: TestRow[] }) {
+  const sorted = [...data].sort((a, b) => b.p95DurationMs - a.p95DurationMs)
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Test Name</TableHead>
+          <TableHead className="text-right">p95 Time</TableHead>
+          <TableHead className="text-right">Avg Time</TableHead>
+          <TableHead className="text-right">Runs</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {sorted.map(test => (
+          <TableRow key={test.name}>
+            <TableCell className="font-medium">{test.name}</TableCell>
+            <TableCell className="text-right">{formatDuration(test.p95DurationMs)}</TableCell>
+            <TableCell className="text-right text-muted-foreground">{formatDuration(test.avgDurationMs)}</TableCell>
+            <TableCell className="text-right text-muted-foreground">{test.totalRuns}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function FastestTable({ data }: { data: TestRow[] }) {
+  const sorted = [...data].sort((a, b) => a.p95DurationMs - b.p95DurationMs)
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Test Name</TableHead>
+          <TableHead className="text-right">p95 Time</TableHead>
+          <TableHead className="text-right">Avg Time</TableHead>
+          <TableHead className="text-right">Runs</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {sorted.map(test => (
+          <TableRow key={test.name}>
+            <TableCell className="font-medium">{test.name}</TableCell>
+            <TableCell className="text-right">{formatDuration(test.p95DurationMs)}</TableCell>
+            <TableCell className="text-right text-muted-foreground">{formatDuration(test.avgDurationMs)}</TableCell>
+            <TableCell className="text-right text-muted-foreground">{test.totalRuns}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function FlakyTable({ data }: { data: TestRow[] }) {
+  const sorted = [...data].sort((a, b) => b.flakyCount - a.flakyCount)
+
+  if (sorted.length === 0) {
+    return <p className="text-muted-foreground py-8 text-center">No flaky tests detected.</p>
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Test Name</TableHead>
+          <TableHead className="text-right">Flaky Count</TableHead>
+          <TableHead className="text-right">Flaky Rate</TableHead>
+          <TableHead className="text-right">Total Runs</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {sorted.map(test => (
+          <TableRow key={test.name}>
+            <TableCell className="font-medium">{test.name}</TableCell>
+            <TableCell className="text-right">
+              <span className="inline-flex items-center rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-semibold text-destructive">
+                {test.flakyCount}
+              </span>
+            </TableCell>
+            <TableCell className="text-right text-muted-foreground">
+              {((test.flakyCount / test.totalRuns) * 100).toFixed(1)}%
+            </TableCell>
+            <TableCell className="text-right text-muted-foreground">{test.totalRuns}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+interface CategoryGroup {
+  category: string
+  tests: TestRow[]
+  totalFlaky: number
+}
+
+function FlakyByCategoryTable({ data }: { data: TestRow[] }) {
+  const groups = groupByCategory(data)
+
+  if (groups.length === 0) {
+    return <p className="text-muted-foreground py-8 text-center">No flaky tests detected.</p>
+  }
+
+  return (
+    <div className="space-y-8">
+      {groups.map(group => (
+        <div key={group.category}>
+          <div className="flex items-center gap-3 mb-3">
+            <h3 className="text-lg font-semibold text-foreground">{group.category}</h3>
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+              {group.totalFlaky} flaky
+            </span>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Test Name</TableHead>
+                <TableHead className="text-right">Flaky Count</TableHead>
+                <TableHead className="text-right">Flaky Rate</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.tests.sort((a, b) => b.flakyCount - a.flakyCount).map(test => (
+                <TableRow key={test.name}>
+                  <TableCell className="font-medium">{getTestShortName(test.name)}</TableCell>
+                  <TableCell className="text-right">
+                    <span className="inline-flex items-center rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-semibold text-destructive">
+                      {test.flakyCount}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {((test.flakyCount / test.totalRuns) * 100).toFixed(1)}%
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(2)}s`
+}
+
+function getCategory(name: string): string {
+  const separator = name.includes(' > ') ? ' > ' : '/'
+  const parts = name.split(separator)
+  return parts.length > 1 ? parts[0] : 'Other'
+}
+
+function getTestShortName(name: string): string {
+  const separator = name.includes(' > ') ? ' > ' : '/'
+  const parts = name.split(separator)
+  return parts.length > 1 ? parts.slice(1).join(separator) : name
+}
+
+function groupByCategory(tests: TestRow[]): CategoryGroup[] {
+  const grouped: Record<string, TestRow[]> = {}
+
+  for (const test of tests) {
+    const category = getCategory(test.name)
+    if (!grouped[category]) grouped[category] = []
+    grouped[category].push(test)
+  }
+
+  return Object.entries(grouped)
+    .map(([category, tests]) => ({
+      category,
+      tests,
+      totalFlaky: tests.reduce((sum, t) => sum + t.flakyCount, 0)
+    }))
+    .sort((a, b) => b.totalFlaky - a.totalFlaky)
 }

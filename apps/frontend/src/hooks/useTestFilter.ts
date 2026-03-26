@@ -1,13 +1,5 @@
 import { useMemo } from 'react'
-
-interface TestRow {
-  name: string
-  totalRuns: number
-  passCount: number
-  failCount: number
-  avgDurationMs: number
-  p95DurationMs: number
-}
+import type { TestRow } from '../types'
 
 export function useTestFilter(tests: TestRow[], query: string): TestRow[] {
   return useMemo(() => {

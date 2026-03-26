@@ -29,7 +29,7 @@ function TableRow({ className, ...props }: TableRowProps) {
   return (
     <tr
       className={cn(
-        'border-b border-gray-800 transition-colors hover:bg-gray-800/50',
+        'border-b border-border transition-colors hover:bg-muted/50',
         className
       )}
       {...props}
@@ -43,7 +43,7 @@ function TableHead({ className, ...props }: TableHeadProps) {
   return (
     <th
       className={cn(
-        'h-10 px-3 text-left align-middle font-semibold text-gray-400',
+        'h-10 px-3 text-left align-middle font-semibold text-muted-foreground',
         className
       )}
       {...props}
@@ -56,7 +56,7 @@ interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {}
 function TableCell({ className, ...props }: TableCellProps) {
   return (
     <td
-      className={cn('p-3 align-middle text-white', className)}
+      className={cn('p-3 align-middle text-foreground', className)}
       {...props}
     />
   )

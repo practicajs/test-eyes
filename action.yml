@@ -3,9 +3,24 @@ description: 'Collect test results and deploy analytics dashboard'
 author: 'goldbergyoni'
 
 inputs:
+  input-path:
+    description: 'Path to test results file'
+    required: false
+  input-type:
+    description: 'Type of input file (junit, playwright). Default: junit'
+    required: false
+    default: 'junit'
   junit-path:
-    description: 'Path to JUnit XML file'
-    required: true
+    description: 'Path to JUnit XML file (alias for input-path with input-type=junit)'
+    required: false
+  data-branch:
+    description: 'Branch to store test data'
+    required: false
+    default: 'gh-data'
+  deploy-branch:
+    description: 'Branch to deploy dashboard'
+    required: false
+    default: 'gh-pages'
   cache_duration_in_minutes:
     description: 'Cache duration (reserved for future)'
     required: false
@@ -14,13 +29,27 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Validate input
+    - name: Determine input path
+      id: input
       shell: bash
       run: |
-        if [ ! -f "${{ inputs.junit-path }}" ]; then
-          echo "::error::File not found: ${{ inputs.junit-path }}"
+        # Support both input-path and junit-path (backward compat)
+        INPUT_PATH="${{ inputs.input-path }}"
+        if [ -z "$INPUT_PATH" ]; then
+          INPUT_PATH="${{ inputs.junit-path }}"
+        fi
+
+        if [ -z "$INPUT_PATH" ]; then
+          echo "::error::Either input-path or junit-path is required"
           exit 1
         fi
+
+        if [ ! -f "$INPUT_PATH" ]; then
+          echo "::error::File not found: $INPUT_PATH"
+          exit 1
+        fi
+
+        echo "path=$INPUT_PATH" >> $GITHUB_OUTPUT
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -30,25 +59,28 @@ runs:
     - name: Collect test data and deploy
       shell: bash
       env:
-        JUNIT_PATH: ${{ inputs.junit-path }}
+        INPUT_PATH: ${{ steps.input.outputs.path }}
+        INPUT_TYPE: ${{ inputs.input-type }}
+        DATA_BRANCH: ${{ inputs.data-branch }}
+        DEPLOY_BRANCH: ${{ inputs.deploy-branch }}
         GITHUB_SHA: ${{ github.sha }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
         # Copy action-dist to temp before branch switching
         cp -r "$ACTION_PATH/action-dist" /tmp/test-eyes-dist
 
-        # Run the bundled collector script
+        # Run the bundled collector script (currently only JUnit supported via action)
         node "$ACTION_PATH/action-dist/scripts/collector.mjs" \
-          --junit-path "$JUNIT_PATH" \
+          --junit-path "$INPUT_PATH" \
           --commit-sha "$GITHUB_SHA" \
-          --data-branch "gh-data"
+          --data-branch "$DATA_BRANCH"
 
         # Deploy using the bundled deploy script
         node /tmp/test-eyes-dist/scripts/deploy.mjs \
           --dist-dir /tmp/test-eyes-dist \
           --data-dir data \
           --commit-sha "$GITHUB_SHA" \
-          --target-branch "gh-pages"
+          --target-branch "$DEPLOY_BRANCH"
 
         # Restore original commit so action.yml exists for post-run
         git checkout "$GITHUB_SHA" 2>/dev/null || true

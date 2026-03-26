@@ -6,6 +6,8 @@ export interface TestResult {
   name: string
   durationMs: number
   status: 'passed' | 'failed' | 'skipped'
+  wasFlaky?: boolean // true if test failed then passed on retry
+  retries?: number   // number of retry attempts
 }
 
 export interface RunData {
@@ -24,6 +26,7 @@ export interface TestStats {
   totalRuns: number
   passCount: number
   failCount: number
+  flakyCount: number
   avgDurationMs: number
   p95DurationMs: number
 }
@@ -94,4 +97,15 @@ export interface DeployOptions {
   dataDir: string
   targetBranch: string
   commitSha: string
+}
+
+// ============================================================================
+// Collection Options (Format-Agnostic)
+// ============================================================================
+
+export interface CollectFromRunDataOptions {
+  runData: RunData
+  dataBranch: string
+  deployAfterCollect?: boolean
+  deployBranch?: string
 }

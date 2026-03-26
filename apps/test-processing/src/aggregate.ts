@@ -1,11 +1,7 @@
 import path from 'path'
 import type { AggregatedData, TestStats, RunData } from './types.js'
-import {
-  loadAggregatedData,
-  saveAggregatedData,
-  findUnprocessedFiles,
-  loadTestData
-} from './file-operations.js'
+import { findUnprocessedFiles, loadTestData } from './file-operations.js'
+import { fetchAggregatedData } from './git-operations.js'
 
 // ============================================================================
 // Statistics Calculation
@@ -54,6 +50,7 @@ function createEmptyStats(): TestStats {
     totalRuns: 0,
     passCount: 0,
     failCount: 0,
+    flakyCount: 0,
     avgDurationMs: 0,
     p95DurationMs: 0
   }
@@ -83,6 +80,10 @@ export function processTestRun(
       stats.failCount++
     }
 
+    if (test.wasFlaky) {
+      stats.flakyCount++
+    }
+
     durations.get(test.name)!.push(test.durationMs)
   }
 }
@@ -106,26 +107,32 @@ export interface AggregateResult {
   totalRuns: number
   totalTests: number
   newFilesProcessed: number
-  outputFile: string
+  data: AggregatedData
 }
 
-export async function aggregate(dataDir: string): Promise<AggregateResult> {
-  const outputFile = path.join(dataDir, 'main-test-data.json')
-  const data = await loadAggregatedData(outputFile)
+export interface AggregateOptions {
+  dataDir: string
+  dataBranch?: string
+  currentRunData?: RunData
+  currentRunFilename?: string
+}
+
+/**
+ * Aggregates test run data from existing files on disk.
+ * Does NOT write to disk - returns the aggregated data for the caller to handle.
+ */
+export async function aggregate(options: AggregateOptions): Promise<AggregateResult> {
+  const { dataDir, dataBranch, currentRunData, currentRunFilename } = options
+  const filepath = path.join(dataDir, 'main-test-data.json')
+
+  // Fetch existing data: from git branch if specified, otherwise from disk
+  const data = dataBranch
+    ? await fetchAggregatedData(dataBranch, filepath)
+    : await fetchAggregatedData('', filepath) // empty branch = read from disk fallback
 
   // Use Set for O(1) lookup
   const processedSet = new Set(data.meta.processedFiles)
   const newFiles = await findUnprocessedFiles(dataDir, processedSet)
-
-  if (newFiles.length === 0) {
-    return {
-      success: true,
-      totalRuns: data.meta.totalRuns,
-      totalTests: Object.keys(data.tests).length,
-      newFilesProcessed: 0,
-      outputFile
-    }
-  }
 
   // Reconstruct durations from existing stats
   const durations = new Map<string, number[]>()
@@ -133,7 +140,7 @@ export async function aggregate(dataDir: string): Promise<AggregateResult> {
     durations.set(testName, Array(stats.totalRuns).fill(stats.avgDurationMs))
   }
 
-  // Process each new file
+  // Process files from disk
   for (const filename of newFiles) {
     const filepath = path.join(dataDir, filename)
     const runData = await loadTestData(filepath)
@@ -145,16 +152,21 @@ export async function aggregate(dataDir: string): Promise<AggregateResult> {
     }
   }
 
+  // Process current run data if provided (not yet on disk)
+  if (currentRunData && currentRunFilename) {
+    if (!processedSet.has(currentRunFilename)) {
+      processTestRun(data, durations, currentRunData, currentRunFilename)
+    }
+  }
+
   recalculateStats(data, durations)
   data.meta.lastAggregatedAt = new Date().toISOString()
-
-  await saveAggregatedData(outputFile, data)
 
   return {
     success: true,
     totalRuns: data.meta.totalRuns,
     totalTests: Object.keys(data.tests).length,
-    newFilesProcessed: newFiles.length,
-    outputFile
+    newFilesProcessed: newFiles.length + (currentRunData ? 1 : 0),
+    data
   }
 }

@@ -1,0 +1,47 @@
+{
+  "name": "@practica/test-eyes",
+  "version": "0.1.7",
+  "description": "Playwright reporter for Test Eyes analytics dashboard",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@playwright/test --external:child_process --external:util --external:fs --external:fs/promises --external:path && tsc --emitDeclarationOnly",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build:bundle"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.27.3",
+    "test-processing": "workspace:*",
+    "typescript": "^5.6.3"
+  },
+  "keywords": [
+    "playwright",
+    "reporter",
+    "test-analytics",
+    "flaky-tests",
+    "test-eyes"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/test-eyes"
+  }
+}

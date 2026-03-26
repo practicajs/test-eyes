@@ -37,7 +37,8 @@ export async function removeDir(dirPath: string): Promise<void> {
 export function generateTestDataFilename(commitSha: string): string {
   const date = new Date().toISOString().split('T')[0]
   const shortSha = commitSha.slice(0, 7)
-  return `${date}_${shortSha}.json`
+  const timestamp = Date.now()
+  return `${date}_${shortSha}_${timestamp}.json`
 }
 
 export async function saveTestData(dataDir: string, filename: string, data: RunData): Promise<string> {

@@ -1,0 +1,148 @@
+# Testing Skill Configuration
+# This configuration controls the testing workflow behavior and system-specific settings.
+# All commands and paths should be adjusted to match your project setup.
+
+[workflow]
+# When true, stops the workflow if no test plan (test-plan.md) is found before writing tests.
+# This ensures tests are never written without a proper plan first.
+stop_when_no_plan = true
+
+# When true, stops the workflow if no app analysis (app-analysis.md) is found.
+# App analysis captures runtime information like network calls that inform test writing.
+stop_when_no_page_analysis = true
+
+# When true, stops the workflow if the app can not be started, executed and approaches
+# For example, when Playwright MCP is unable to access the target page, or the API client is unable to invoke a route
+stop_when_cant_reach_runtime = true
+
+# When true, requires human review task and approval of test plans before proceeding to code tests
+must_have_human_review_of_plan = true
+
+# How many maximum tests can be planned and executed
+# Unless dealing with small components/routes, it is highly recommended to keep this number low to avoid exhausting the context
+max_amount_of_test_to_plan=3
+
+# How many maximum mutants (bugs) to embed in the code when verifying that tests fail with they should
+number_of_mutants_per_test=2
+
+# How many times to re-run tests to check for flakiness
+how_many_executions_to_ensure_stability = 3
+
+# Whether to run all tests for verification or only the subset of files that seem related to the changes
+# Important in projects where tests execution takes a long time
+run_only_specific_test_files=true
+
+# Analysis mode for testskill.page-analyzer agent
+# "runtime" = live browser inspection (default), "static" = source code only (fast), "auto" = runtime if no tests exist, static otherwise
+page_analyzer_mode = "static"
+
+# Thinking mode: controls depth vs speed tradeoff across all sub-agents
+# "lean" = aim for good-enough results quickly, move forward fast
+# "ultra" = thorough analysis, maximize coverage and confidence
+thinking_mode = "lean"
+
+[framework]
+# Unit test framework for testing pure logic, utilities, hooks
+# Common values: "vitest", "jest"
+unit_test_framework = "vitest"
+unit_test_framework_docs = "https://vitest.dev/guide/"
+
+# Library used for mocking functions, modules, and code-level dependencies
+# Common values: "vitest", "jest", "sinon"
+unit_test_mocking_framework = "vitest"
+unit_test_mocking_framework_docs = "https://vitest.dev/guide/mocking.html"
+
+# Framework for integration/page tests (browser-based testing)
+# Common values: "vitest-browser-mode", "playwright", "cypress"
+integration_test_framework = "playwright"
+integration_test_framework_docs = "https://playwright.dev/docs/intro"
+
+# Library used for intercepting and mocking network requests
+# Common values: "msw", "nock", "cy.intercept", "playwright-route"
+network_interception_framework = "playwright-route"
+network_interception_framework_docs = "https://playwright.dev/docs/network#handle-requests"
+
+[commands]
+# Command to start the application for testing/inspection.
+# For browser extensions, we don't need to start an app - extension loads in browser.
+app_start_command = "npm run build"
+
+# Command to stop the application (optional).
+# Not needed for browser extension testing.
+app_stop_command = ""
+
+# Command to run all tests
+# This is the primary command used after writing tests to verify they pass.
+test_run_command = "npm test"
+
+# Command to run the test suite
+# This may be used to diagnose specific failures or when we choose not to run all tests
+test_run_single_file_command = "npx playwright test {file name}"
+
+# Command to run a single test only
+# Used for diagnosis and verification
+test_run_single_test_command = "npx playwright test {file name} -g '{test title}'"
+
+# Command to run the test suite with coverage reporting.
+test_run_command_with_coverage = "N/A"
+
+# Flag to append to the test run command to capture a trace file
+# Playwright: "--trace on"
+test_trace_flag = "--trace on"
+
+# Flag to append to the test run command to repeat it multiple times for stability checks
+# Playwright: "--repeat-each={repeat count}"
+test_repeat_flag = "--repeat-each={repeat count}"
+
+# Flag to disable test retries during stability checks — retries mask flaky tests by silently passing on a second attempt
+test_no_retry_flag = "--retries=0"
+
+# Command to stage changes for git.
+git_stage_command = "git add -A"
+
+[paths]
+# The parent directory Where to save test all test sessions context artifacts (test plans, app analysis, etc.)
+# Options:
+# A custom path like "./test/.context"
+test_context_root_folder = "test/.context/"
+
+# Name of a session-specific context folder to save artifacts of a single test session. This folder will be saved underneath test_context_root_folder.
+# This folder will contain: test-plan.md, app-analysis.md, test results, etc.
+test_context_folder_name_template = "test-context-{feature-or-task-name}-{two digits suffix for uniqueness}"
+
+[app]
+# The base URL used for testing
+# For browser extension, we use external test sites that trigger extension behavior
+app_url = "https://dlptest.io"
+login_instructions = "No login needed. Extension loads automatically. Ensure .env file exists with required environment variables."
+
+[outputs]
+# Filenames for the output documents
+# test-plan.md is generated by the testskill.planner agent
+# page-analysis.md is generated by the testskill.page-analyzer agent
+# test_result_report is generated by the testskill.verifier.md
+test_plan_filename = "test-plan.md"
+page_analysis_filename = "page-analysis.md"
+test_result_report = "test-results.md"
+html_report_filename = "test-results.html"
+transcript_filename = "transcript.jsonl"
+
+[canonical_example]
+# A real test file that demonstrates all best practices.
+# Test writers should read this before writing their first test.
+path = "test/upload.test.ts"
+title = "When user uploads a file with PII and policy blocks it, then the blocker toast appears"
+
+[patterns_and_practices]
+# Maximum number of statements and expressions allowed in a single test
+max_test_statements = 10
+
+# Maximum number of assertions (expect statements) allowed in a single test
+max_assertions = 3
+
+# Maximum number of statements allowed in the Act phase of a test
+max_act_phase_statements = 2
+
+# Maximum number of lines for inline JSON/object literals in a test.
+# Include only fields that are explicitly needed for the test's point. Everything else (unrelated defaults) should come from a data factory.
+max_json_lines_in_test = 2

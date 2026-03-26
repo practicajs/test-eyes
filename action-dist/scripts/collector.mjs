@@ -1869,6 +1869,7 @@ function createEmptyStats() {
     totalRuns: 0,
     passCount: 0,
     failCount: 0,
+    flakyCount: 0,
     avgDurationMs: 0,
     p95DurationMs: 0
   };
@@ -1887,6 +1888,9 @@ function processTestRun(data, durations, runData, filename) {
       stats.passCount++;
     } else if (test.status === "failed") {
       stats.failCount++;
+    }
+    if (test.wasFlaky) {
+      stats.flakyCount++;
     }
     durations.get(test.name).push(test.durationMs);
   }
@@ -1981,11 +1985,15 @@ async function fetchBranches(branches) {
 }
 async function checkoutOrCreateBranch(branch) {
   const result = await runGitSafe(`checkout ${branch}`);
-  if (!result.success) {
-    await runGit(`checkout --orphan ${branch}`);
-    return true;
+  if (result.success) {
+    return false;
   }
-  return false;
+  const fromRemote = await runGitSafe(`checkout -b ${branch} origin/${branch}`);
+  if (fromRemote.success) {
+    return false;
+  }
+  await runGit(`checkout --orphan ${branch}`);
+  return true;
 }
 async function stageFiles(patterns) {
   for (const pattern of patterns) {

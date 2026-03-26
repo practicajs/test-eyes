@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+/* Practica Brand Design Tokens */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* Colors */
+  --color-background: oklch(0.91 0.004 265);
+  --color-foreground: oklch(0.16 0 0);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.16 0 0);
+  --color-primary: oklch(0.68 0.12 199);
+  --color-primary-foreground: oklch(1 0 0);
+  --color-secondary: oklch(0.94 0.015 199);
+  --color-secondary-foreground: oklch(0.2 0 0);
+  --color-muted: oklch(0.93 0.003 265);
+  --color-muted-foreground: oklch(0.45 0 0);
+  --color-accent: oklch(0.93 0.015 199);
+  --color-accent-foreground: oklch(0.2 0 0);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-border: oklch(0.87 0.005 265);
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+}

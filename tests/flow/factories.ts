@@ -19,6 +19,14 @@ export function resetTestIdCounter(): void {
 }
 
 /**
+ * Build expected test name from titlePath.
+ * Keeps assertions in sync with test data.
+ */
+export function testName(titlePath: string[]): string {
+  return titlePath.join(' > ')
+}
+
+/**
  * Create a Playwright TestCase.
  * Uses real Playwright types - only override what matters for your test.
  */

@@ -28,6 +28,9 @@ export {
   type CollectFromRunDataResult
 } from './collector.js'
 
+// JUnit Parser (for junit collector)
+export { parseAndBuildRunData } from './junit-parser.js'
+
 // Git Operations (stubbable boundaries for testing)
 export {
   pushToGitHub,

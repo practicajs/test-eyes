@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'util'
-import { deployDashboard, aggregate, saveAggregatedData } from '../src/index.js'
+import { deployDashboard, aggregate } from '../src/index.js'
+import { saveAggregatedData } from '../src/file-operations.js'
 
 // ============================================================================
 // CLI Commands

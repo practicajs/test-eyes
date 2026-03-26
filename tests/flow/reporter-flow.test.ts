@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TestEyesReporter } from '../../collectors/playwright-reporter/src/reporter.js'
-import { makeTest, makeResult, endRun, makeHistory, resetTestIdCounter } from './factories.js'
+import { makeTest, makeResult, endRun, makeHistory, resetTestIdCounter, testName } from './factories.js'
 import type { FullConfig, Suite } from '@playwright/test/reporter'
 import * as gitOps from '../../apps/test-processing/src/git-operations.js'
 
@@ -23,7 +23,6 @@ describe('Reporter Flow Tests', () => {
     vi.stubEnv('GITHUB_ACTIONS', 'true')
     vi.stubEnv('GITHUB_SHA', 'abc1234567890')
     vi.clearAllMocks()
-    // Reset fetchAggregatedData to return empty history by default
     vi.mocked(gitOps.fetchAggregatedData).mockResolvedValue({
       schemaVersion: '1.0.0',
       meta: { totalRuns: 0, lastAggregatedAt: null, processedFiles: [] },
@@ -38,7 +37,8 @@ describe('Reporter Flow Tests', () => {
   describe('Flaky detection', () => {
     it('When test fails twice then passes, then it is marked as flaky', async () => {
       const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
-      const test = makeTest(['E2E', 'checkout flow'], 'flaky')
+      const titlePath = ['E2E', 'checkout flow']
+      const test = makeTest(titlePath, 'flaky')
 
       reporter.onBegin(mockConfig, mockSuite)
       reporter.onTestEnd(test, makeResult('failed', 1200, 0))
@@ -50,7 +50,7 @@ describe('Reporter Flow Tests', () => {
         expect.objectContaining({
           runData: expect.objectContaining({
             tests: [expect.objectContaining({
-              name: 'E2E > checkout flow',
+              name: testName(titlePath),
               wasFlaky: true,
               status: 'passed',
               durationMs: 1100
@@ -58,7 +58,7 @@ describe('Reporter Flow Tests', () => {
           }),
           aggregatedData: expect.objectContaining({
             tests: {
-              'E2E > checkout flow': expect.objectContaining({
+              [testName(titlePath)]: expect.objectContaining({
                 flakyCount: 1,
                 passCount: 1,
                 failCount: 0
@@ -73,7 +73,8 @@ describe('Reporter Flow Tests', () => {
   describe('Duration tracking', () => {
     it('When test completes, then duration is recorded in stats', async () => {
       const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
-      const test = makeTest(['API', 'database query'])
+      const titlePath = ['API', 'database query']
+      const test = makeTest(titlePath)
 
       reporter.onBegin(mockConfig, mockSuite)
       reporter.onTestEnd(test, makeResult('passed', 1550))
@@ -82,11 +83,11 @@ describe('Reporter Flow Tests', () => {
       expect(gitOps.pushToGitHub).toHaveBeenCalledWith(
         expect.objectContaining({
           runData: expect.objectContaining({
-            tests: [expect.objectContaining({ name: 'API > database query', durationMs: 1550 })]
+            tests: [expect.objectContaining({ name: testName(titlePath), durationMs: 1550 })]
           }),
           aggregatedData: expect.objectContaining({
             tests: {
-              'API > database query': expect.objectContaining({
+              [testName(titlePath)]: expect.objectContaining({
                 avgDurationMs: 1550,
                 p95DurationMs: 1550
               })
@@ -100,9 +101,12 @@ describe('Reporter Flow Tests', () => {
   describe('Mixed statuses', () => {
     it('When tests have mixed results, then counts are tracked correctly', async () => {
       const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
-      const passed = makeTest(['Auth', 'login'])
-      const failed = makeTest(['Checkout', 'payment'], 'unexpected')
-      const flaky = makeTest(['User', 'profile'], 'flaky')
+      const passedPath = ['Auth', 'login']
+      const failedPath = ['Checkout', 'payment']
+      const flakyPath = ['User', 'profile']
+      const passed = makeTest(passedPath)
+      const failed = makeTest(failedPath, 'unexpected')
+      const flaky = makeTest(flakyPath, 'flaky')
 
       reporter.onBegin(mockConfig, mockSuite)
       reporter.onTestEnd(passed, makeResult('passed', 200))
@@ -115,9 +119,9 @@ describe('Reporter Flow Tests', () => {
         expect.objectContaining({
           aggregatedData: expect.objectContaining({
             tests: {
-              'Auth > login': expect.objectContaining({ passCount: 1, failCount: 0 }),
-              'Checkout > payment': expect.objectContaining({ passCount: 0, failCount: 1 }),
-              'User > profile': expect.objectContaining({ passCount: 1, flakyCount: 1 })
+              [testName(passedPath)]: expect.objectContaining({ passCount: 1, failCount: 0 }),
+              [testName(failedPath)]: expect.objectContaining({ passCount: 0, failCount: 1 }),
+              [testName(flakyPath)]: expect.objectContaining({ passCount: 1, flakyCount: 1 })
             }
           })
         })
@@ -127,11 +131,12 @@ describe('Reporter Flow Tests', () => {
 
   describe('History merge', () => {
     it('When history exists, then new results accumulate', async () => {
+      const titlePath = ['Auth', 'login']
       vi.mocked(gitOps.fetchAggregatedData).mockResolvedValueOnce(
-        makeHistory({ 'Auth > login': { totalRuns: 5, passCount: 5 } })
+        makeHistory({ [testName(titlePath)]: { totalRuns: 5, passCount: 5 } })
       )
       const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
-      const test = makeTest(['Auth', 'login'], 'unexpected')
+      const test = makeTest(titlePath, 'unexpected')
 
       reporter.onBegin(mockConfig, mockSuite)
       reporter.onTestEnd(test, makeResult('failed', 250))
@@ -142,7 +147,7 @@ describe('Reporter Flow Tests', () => {
           aggregatedData: expect.objectContaining({
             meta: expect.objectContaining({ totalRuns: 6 }),
             tests: {
-              'Auth > login': expect.objectContaining({
+              [testName(titlePath)]: expect.objectContaining({
                 totalRuns: 6,
                 passCount: 5,
                 failCount: 1
@@ -156,7 +161,8 @@ describe('Reporter Flow Tests', () => {
     it('When history has no tests, then new test is added', async () => {
       vi.mocked(gitOps.fetchAggregatedData).mockResolvedValueOnce(makeHistory({}, 3))
       const reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
-      const test = makeTest(['Feature', 'new feature'])
+      const titlePath = ['Feature', 'new feature']
+      const test = makeTest(titlePath)
 
       reporter.onBegin(mockConfig, mockSuite)
       reporter.onTestEnd(test, makeResult('passed', 100))
@@ -167,7 +173,7 @@ describe('Reporter Flow Tests', () => {
           aggregatedData: expect.objectContaining({
             meta: expect.objectContaining({ totalRuns: 4 }),
             tests: {
-              'Feature > new feature': expect.objectContaining({ passCount: 1 })
+              [testName(titlePath)]: expect.objectContaining({ passCount: 1 })
             }
           })
         })

@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../utils/cn'
 
-const titleVariants = cva('font-bold tracking-tight text-white', {
+const titleVariants = cva('font-bold tracking-tight', {
   variants: {
     size: {
       h1: 'text-4xl md:text-5xl',

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="5" failures="0" errors="0" time="1.505456136">
+    <testsuite name="tests/app.test.ts" timestamp="2026-03-26T15:54:07.785Z" hostname="runnervmrg6be" tests="5" failures="0" errors="0" skipped="0" time="1.505456136">
+        <testcase classname="tests/app.test.ts" name="auth &gt; should login successfully" time="0.001249866">
+        </testcase>
+        <testcase classname="tests/app.test.ts" name="payments &gt; should charge card" time="1.501254147">
+        </testcase>
+        <testcase classname="tests/app.test.ts" name="profile &gt; should load user data" time="0.000281414">
+        </testcase>
+        <testcase classname="tests/app.test.ts" name="notifications &gt; should send email" time="0.000232733">
+        </testcase>
+        <testcase classname="tests/app.test.ts" name="settings &gt; should save preferences" time="0.00025224">
+        </testcase>
+    </testsuite>
+</testsuites>

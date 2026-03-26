@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repository Test Health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #FAFAFA;
+      --card: #FFFFFF;
+      --text: #1A1A2E;
+      --muted: #8A8A9A;
+      --accent: #E8453C;
+      --accent-light: #FFF0EF;
+      --green: #2DB574;
+      --green-light: #EDFBF4;
+      --border: #F0F0F4;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 48px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .back-link {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      margin-bottom: 16px;
+    }
+
+    .back-link:hover {
+      color: var(--text);
+    }
+
+    header {
+      margin-bottom: 32px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 15px;
+      margin-top: 6px;
+    }
+
+    /* --- Health Overview --- */
+    .health-overview {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 28px;
+    }
+
+    .health-overview-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .health-overview-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .health-overview-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .health-overview-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .health-score-current {
+      text-align: right;
+    }
+
+    .health-score-value {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .health-score-value.bad { color: var(--accent); }
+    .health-score-value.good { color: var(--green); }
+
+    .health-score-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .health-chart {
+      position: relative;
+    }
+
+    .health-chart svg {
+      width: 100%;
+      height: auto;
+    }
+
+    /* --- Why Tooltip --- */
+    .why-details {
+      position: relative;
+    }
+
+    .why-details summary {
+      list-style: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 12px;
+      border-radius: 6px;
+      user-select: none;
+    }
+
+    .why-details summary::-webkit-details-marker { display: none; }
+    .why-details summary::marker { display: none; content: ''; }
+
+    .why-tooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 300px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+
+    .why-tooltip-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .why-metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 13px;
+    }
+
+    .why-metric + .why-metric {
+      border-top: 1px solid var(--border);
+    }
+
+    .why-metric-label {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .why-metric-value {
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .why-insight {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: #F7F7FA;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* --- Action Tooltip --- */
+    .action-details {
+      position: relative;
+    }
+
+    .action-details summary {
+      list-style: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 12px;
+      border-radius: 6px;
+      user-select: none;
+    }
+
+    .action-details summary::-webkit-details-marker { display: none; }
+    .action-details summary::marker { display: none; content: ''; }
+
+    .action-tooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 340px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+
+    .action-tooltip-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .action-item + .action-item {
+      border-top: 1px solid var(--border);
+    }
+
+    .action-number {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .action-text {
+      color: var(--text);
+    }
+
+    .action-link {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .action-link:hover {
+      text-decoration: underline;
+    }
+
+    /* --- Grid --- */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+    }
+
+    .card-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    /* --- A: Mutants Bar Chart --- */
+    .mutant-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      height: 140px;
+      padding-top: 10px;
+    }
+
+    .mutant-bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .mutant-bar-value {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .mutant-bar {
+      width: 100%;
+      border-radius: 6px 6px 0 0;
+      min-height: 4px;
+    }
+
+    .mutant-bar-month {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+      margin-top: 8px;
+    }
+
+    .mutant-footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* --- B: Uncovered Areas --- */
+    .route-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .route-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: var(--accent-light);
+      border-radius: 10px;
+    }
+
+    .route-path {
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .route-cov {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .route-bar-container {
+      width: 80px;
+      height: 5px;
+      background: #F5D5D3;
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .route-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+    }
+
+    .route-right {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    /* --- C: Unengaged Devs --- */
+    .dev-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .dev-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .dev-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .dev-info { flex: 1; }
+
+    .dev-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .dev-stat {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .dev-ratio {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .dev-bar-bg {
+      width: 100%;
+      height: 4px;
+      background: var(--accent-light);
+      border-radius: 99px;
+      margin-top: 6px;
+    }
+
+    .dev-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+    }
+
+    /* --- D: Test-less PRs --- */
+    .pr-hero {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .pr-hero .big {
+      font-size: 72px;
+      font-weight: 800;
+      letter-spacing: -3px;
+      line-height: 1;
+      color: var(--accent);
+    }
+
+    .pr-hero .total {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .pr-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .pr-trend-chart {
+      margin-bottom: 24px;
+    }
+
+    .pr-trend-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .pr-trend-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 80px;
+    }
+
+    .pr-trend-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .pr-trend-val {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+
+    .pr-trend-bar {
+      width: 100%;
+      border-radius: 4px 4px 0 0;
+      min-height: 2px;
+    }
+
+    .pr-trend-week {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .pr-breakdown {
+      display: flex;
+      gap: 16px;
+    }
+
+    .pr-segment {
+      flex: 1;
+      padding: 16px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .pr-segment.bad { background: var(--accent-light); }
+    .pr-segment.good { background: var(--green-light); }
+
+    .pr-segment-num {
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .pr-segment.bad .pr-segment-num { color: var(--accent); }
+    .pr-segment.good .pr-segment-num { color: var(--green); }
+
+    .pr-segment-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .pr-visual-bar {
+      display: flex;
+      height: 10px;
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+
+    .pr-visual-bar .bad-fill {
+      width: 62%;
+      background: var(--accent);
+    }
+
+    .pr-visual-bar .good-fill {
+      width: 38%;
+      background: var(--green);
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-left: 8px;
+    }
+
+    .tag-red {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: 1fr; }
+      body { padding: 32px; }
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <a href="organization-view.html" class="back-link">&larr; Back to Organization</a>
+
+  <header>
+    <h1>Repository Test Health</h1>
+    <p>my-org/payments-service &middot; Last 3 months</p>
+  </header>
+
+  <!-- Health Over Time -->
+  <div class="health-overview">
+    <div class="health-overview-header">
+      <div>
+        <div class="health-overview-label">Overall Health</div>
+        <div class="health-overview-title">Test Health Over Time</div>
+      </div>
+      <div class="health-overview-right">
+        <div class="health-score-current">
+          <div class="health-score-value bad">42</div>
+          <div class="health-score-label">Current Score</div>
+        </div>
+        <details class="why-details">
+          <summary>Why</summary>
+          <div class="why-tooltip">
+            <div class="why-tooltip-title">What's happening?</div>
+            <div class="why-metric">
+              <span class="why-metric-label">Test-less PRs</span>
+              <span class="why-metric-value">38% &rarr; 62%</span>
+            </div>
+            <div class="why-metric">
+              <span class="why-metric-label">Developer engagement</span>
+              <span class="why-metric-value">-11% write tests</span>
+            </div>
+            <div class="why-metric">
+              <span class="why-metric-label">Best practices kept</span>
+              <span class="why-metric-value">40%</span>
+            </div>
+            <div class="why-metric">
+              <span class="why-metric-label">Test skill</span>
+              <span class="why-metric-value">Not present</span>
+            </div>
+            <div class="why-insight">Looks like newly onboarded developers write fewer tests</div>
+          </div>
+        </details>
+        <details class="action-details">
+          <summary>Action</summary>
+          <div class="action-tooltip">
+            <div class="action-tooltip-title">Suggested actions</div>
+            <div class="action-item">
+              <span class="action-number">1</span>
+              <span class="action-text">Deploy the testing skill. <a class="action-link" href="#">Click here</a></span>
+            </div>
+            <div class="action-item">
+              <span class="action-number">2</span>
+              <span class="action-text">Send Slack message to newly onboarded developers to perform the test training (part of the skill). <a class="action-link" href="#">Click here</a></span>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="health-chart">
+      <svg viewBox="0 0 700 170" preserveAspectRatio="xMidYMid meet">
+        <!-- Grid lines -->
+        <line x1="50" y1="10" x2="660" y2="10" stroke="#F0F0F4" stroke-width="1"/>
+        <line x1="50" y1="62" x2="660" y2="62" stroke="#F0F0F4" stroke-width="1" stroke-dasharray="6 4"/>
+        <line x1="50" y1="114" x2="660" y2="114" stroke="#F0F0F4" stroke-width="1"/>
+
+        <!-- Y-axis labels -->
+        <text x="40" y="14" text-anchor="end" font-size="11" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">80</text>
+        <text x="40" y="66" text-anchor="end" font-size="11" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">60</text>
+        <text x="40" y="118" text-anchor="end" font-size="11" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">40</text>
+
+        <!-- Threshold label -->
+        <text x="665" y="58" font-size="10" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">Healthy</text>
+
+        <!-- Area fill under the line -->
+        <polygon points="50,33 105,41 161,49 217,57 272,67 328,75 383,83 439,88 494,93 550,98 605,104 660,109 660,140 50,140" fill="#E8453C" fill-opacity="0.06"/>
+
+        <!-- Decline line: 71 → 42 over 12 weeks -->
+        <polyline points="50,33 105,41 161,49 217,57 272,67 328,75 383,83 439,88 494,93 550,98 605,104 660,109" fill="none" stroke="#E8453C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- Data point dots -->
+        <circle cx="50" cy="33" r="3" fill="#E8453C"/>
+        <circle cx="105" cy="41" r="3" fill="#E8453C"/>
+        <circle cx="161" cy="49" r="3" fill="#E8453C"/>
+        <circle cx="217" cy="57" r="3" fill="#E8453C"/>
+        <circle cx="272" cy="67" r="3" fill="#E8453C"/>
+        <circle cx="328" cy="75" r="3" fill="#E8453C"/>
+        <circle cx="383" cy="83" r="3" fill="#E8453C"/>
+        <circle cx="439" cy="88" r="3" fill="#E8453C"/>
+        <circle cx="494" cy="93" r="3" fill="#E8453C"/>
+        <circle cx="550" cy="98" r="3" fill="#E8453C"/>
+        <circle cx="605" cy="104" r="3" fill="#E8453C"/>
+        <circle cx="660" cy="109" r="4" fill="#E8453C"/>
+
+        <!-- Start/end value labels -->
+        <text x="50" y="26" text-anchor="middle" font-size="12" font-weight="700" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">71</text>
+        <text x="660" y="125" text-anchor="middle" font-size="12" font-weight="700" fill="#E8453C" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">42</text>
+
+        <!-- X-axis month labels -->
+        <text x="152" y="158" text-anchor="middle" font-size="11" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">Nov</text>
+        <text x="355" y="158" text-anchor="middle" font-size="11" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">Dec</text>
+        <text x="558" y="158" text-anchor="middle" font-size="11" fill="#8A8A9A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">Jan</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Detail Cards -->
+  <div class="grid">
+
+    <!-- A: Uncovered Potential Bugs (Mutants) -->
+    <div class="card">
+      <div class="card-label">Mutation Testing</div>
+      <div class="card-title">Uncovered Potential Bugs (Mutants) <span class="tag tag-red">Rising</span></div>
+      <div class="card-desc">Fake bugs injected into your code that tests failed to catch. Each surviving mutant is a real bug that could slip through.</div>
+
+      <div class="mutant-chart">
+        <div class="mutant-bar-col">
+          <span class="mutant-bar-value" style="color: var(--muted);">156</span>
+          <div class="mutant-bar" style="height: 55%; background: var(--border);"></div>
+          <span class="mutant-bar-month">Aug</span>
+        </div>
+        <div class="mutant-bar-col">
+          <span class="mutant-bar-value" style="color: var(--muted);">168</span>
+          <div class="mutant-bar" style="height: 60%; background: var(--border);"></div>
+          <span class="mutant-bar-month">Sep</span>
+        </div>
+        <div class="mutant-bar-col">
+          <span class="mutant-bar-value" style="color: var(--muted);">189</span>
+          <div class="mutant-bar" style="height: 68%; background: var(--border);"></div>
+          <span class="mutant-bar-month">Oct</span>
+        </div>
+        <div class="mutant-bar-col">
+          <span class="mutant-bar-value" style="color: var(--accent);">204</span>
+          <div class="mutant-bar" style="height: 74%; background: var(--accent); opacity: 0.6;"></div>
+          <span class="mutant-bar-month">Nov</span>
+        </div>
+        <div class="mutant-bar-col">
+          <span class="mutant-bar-value" style="color: var(--accent);">218</span>
+          <div class="mutant-bar" style="height: 80%; background: var(--accent); opacity: 0.8;"></div>
+          <span class="mutant-bar-month">Dec</span>
+        </div>
+        <div class="mutant-bar-col">
+          <span class="mutant-bar-value" style="color: var(--accent); font-weight: 800;">232</span>
+          <div class="mutant-bar" style="height: 88%; background: var(--accent);"></div>
+          <span class="mutant-bar-month">Jan</span>
+        </div>
+      </div>
+
+      <div class="mutant-footer">
+        <span>232 surviving mutants of 374 total</span>
+        <span>+49% in 6 months</span>
+      </div>
+    </div>
+
+    <!-- B: Uncovered Areas -->
+    <div class="card">
+      <div class="card-label">Coverage Gaps</div>
+      <div class="card-title">Uncovered Routes</div>
+      <div class="card-desc">API routes where less than 30% of logic is covered by tests. These are your blind spots in production.</div>
+
+      <ul class="route-list">
+        <li class="route-item">
+          <span class="route-path">/api/payments/refund</span>
+          <div class="route-right">
+            <span class="route-cov">8%</span>
+            <div class="route-bar-container"><div class="route-bar-fill" style="width:8%"></div></div>
+          </div>
+        </li>
+        <li class="route-item">
+          <span class="route-path">/api/webhooks/stripe</span>
+          <div class="route-right">
+            <span class="route-cov">14%</span>
+            <div class="route-bar-container"><div class="route-bar-fill" style="width:14%"></div></div>
+          </div>
+        </li>
+        <li class="route-item">
+          <span class="route-path">/api/users/delete</span>
+          <div class="route-right">
+            <span class="route-cov">22%</span>
+            <div class="route-bar-container"><div class="route-bar-fill" style="width:22%"></div></div>
+          </div>
+        </li>
+        <li class="route-item">
+          <span class="route-path">/api/invoices/generate</span>
+          <div class="route-right">
+            <span class="route-cov">27%</span>
+            <div class="route-bar-container"><div class="route-bar-fill" style="width:27%"></div></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- C: Most Unengaged Developers -->
+    <div class="card">
+      <div class="card-label">Team Engagement</div>
+      <div class="card-title">Lowest Test Contributors</div>
+      <div class="card-desc">Developers with the lowest test-to-code ratio. They write production code but rarely add matching tests.</div>
+
+      <ul class="dev-list">
+        <li class="dev-item">
+          <div class="dev-avatar">MK</div>
+          <div class="dev-info">
+            <div class="dev-name">Mike K.</div>
+            <div class="dev-stat">47 commits &middot; 2 test files touched</div>
+            <div class="dev-bar-bg"><div class="dev-bar-fill" style="width: 6%"></div></div>
+          </div>
+          <div class="dev-ratio">0.06</div>
+        </li>
+        <li class="dev-item">
+          <div class="dev-avatar">SR</div>
+          <div class="dev-info">
+            <div class="dev-name">Sara R.</div>
+            <div class="dev-stat">31 commits &middot; 4 test files touched</div>
+            <div class="dev-bar-bg"><div class="dev-bar-fill" style="width: 14%"></div></div>
+          </div>
+          <div class="dev-ratio">0.14</div>
+        </li>
+        <li class="dev-item">
+          <div class="dev-avatar">JL</div>
+          <div class="dev-info">
+            <div class="dev-name">James L.</div>
+            <div class="dev-stat">28 commits &middot; 5 test files touched</div>
+            <div class="dev-bar-bg"><div class="dev-bar-fill" style="width: 19%"></div></div>
+          </div>
+          <div class="dev-ratio">0.19</div>
+        </li>
+        <li class="dev-item">
+          <div class="dev-avatar">DP</div>
+          <div class="dev-info">
+            <div class="dev-name">Dana P.</div>
+            <div class="dev-stat">22 commits &middot; 5 test files touched</div>
+            <div class="dev-bar-bg"><div class="dev-bar-fill" style="width: 24%"></div></div>
+          </div>
+          <div class="dev-ratio">0.24</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- D: Test-less PRs -->
+    <div class="card">
+      <div class="card-label">Pull Requests</div>
+      <div class="card-title">Test-less PRs <span class="tag tag-red">High</span></div>
+      <div class="card-desc">PRs merged with no tests or under 30% coverage of new code. Most regressions trace back to these.</div>
+
+      <div class="pr-hero">
+        <span class="big">62</span>
+        <span class="total">/ 100 PRs</span>
+      </div>
+      <div class="pr-subtitle">merged in the last 30 days without adequate tests</div>
+
+      <div class="pr-trend-chart">
+        <div class="pr-trend-label">Weekly degradation</div>
+        <div class="pr-trend-bars">
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">38%</span>
+            <div class="pr-trend-bar" style="height: 38%; background: var(--accent); opacity: 0.4;"></div>
+            <span class="pr-trend-week">W1</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">41%</span>
+            <div class="pr-trend-bar" style="height: 41%; background: var(--accent); opacity: 0.5;"></div>
+            <span class="pr-trend-week">W2</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">44%</span>
+            <div class="pr-trend-bar" style="height: 44%; background: var(--accent); opacity: 0.55;"></div>
+            <span class="pr-trend-week">W3</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">49%</span>
+            <div class="pr-trend-bar" style="height: 49%; background: var(--accent); opacity: 0.65;"></div>
+            <span class="pr-trend-week">W4</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">53%</span>
+            <div class="pr-trend-bar" style="height: 53%; background: var(--accent); opacity: 0.75;"></div>
+            <span class="pr-trend-week">W5</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">56%</span>
+            <div class="pr-trend-bar" style="height: 56%; background: var(--accent); opacity: 0.85;"></div>
+            <span class="pr-trend-week">W6</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">59%</span>
+            <div class="pr-trend-bar" style="height: 59%; background: var(--accent); opacity: 0.9;"></div>
+            <span class="pr-trend-week">W7</span>
+          </div>
+          <div class="pr-trend-col">
+            <span class="pr-trend-val">62%</span>
+            <div class="pr-trend-bar" style="height: 62%; background: var(--accent);"></div>
+            <span class="pr-trend-week">W8</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pr-breakdown">
+        <div class="pr-segment bad">
+          <div class="pr-segment-num">41</div>
+          <div class="pr-segment-label">Zero tests</div>
+        </div>
+        <div class="pr-segment bad">
+          <div class="pr-segment-num">21</div>
+          <div class="pr-segment-label">&lt; 30% covered</div>
+        </div>
+        <div class="pr-segment good">
+          <div class="pr-segment-num">38</div>
+          <div class="pr-segment-label">Adequate</div>
+        </div>
+      </div>
+
+      <div class="pr-visual-bar">
+        <div class="bad-fill"></div>
+        <div class="good-fill"></div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

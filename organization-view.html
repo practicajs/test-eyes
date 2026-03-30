@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Organization Test Health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #FAFAFA;
+      --card: #FFFFFF;
+      --text: #1A1A2E;
+      --muted: #8A8A9A;
+      --accent: #E8453C;
+      --accent-light: #FFF0EF;
+      --green: #2DB574;
+      --green-light: #EDFBF4;
+      --border: #F0F0F4;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 48px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 15px;
+      margin-top: 6px;
+    }
+
+    /* --- Service Grid --- */
+    .service-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .service-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      position: relative;
+    }
+
+    .service-card.unhealthy {
+      border-left: 3px solid var(--accent);
+    }
+
+    .service-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .service-name {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .service-name a {
+      color: var(--text);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .service-name a::after {
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A9A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+      background-size: contain;
+      flex-shrink: 0;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+
+    .service-name a:hover {
+      color: var(--accent);
+    }
+
+    .service-name a:hover::after {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23E8453C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+      opacity: 1;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .service-body {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .gauge-container {
+      flex-shrink: 0;
+    }
+
+    .sparkline-container {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .sparkline-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    /* --- Why Tooltip --- */
+    .why-details {
+      position: relative;
+    }
+
+    .why-details summary {
+      list-style: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 12px;
+      border-radius: 6px;
+      user-select: none;
+    }
+
+    .why-details summary::-webkit-details-marker { display: none; }
+    .why-details summary::marker { display: none; content: ''; }
+
+    .why-tooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 300px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+
+    .why-tooltip-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .why-metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 13px;
+    }
+
+    .why-metric + .why-metric {
+      border-top: 1px solid var(--border);
+    }
+
+    .why-metric-label {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .why-metric-value {
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .why-insight {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: #F7F7FA;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* --- Action Tooltip --- */
+    .action-details {
+      position: relative;
+    }
+
+    .action-details summary {
+      list-style: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 12px;
+      border-radius: 6px;
+      user-select: none;
+    }
+
+    .action-details summary::-webkit-details-marker { display: none; }
+    .action-details summary::marker { display: none; content: ''; }
+
+    .action-tooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 340px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+
+    .action-tooltip-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .action-item + .action-item {
+      border-top: 1px solid var(--border);
+    }
+
+    .action-number {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .action-text {
+      color: var(--text);
+    }
+
+    .action-link {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .action-link:hover {
+      text-decoration: underline;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 1024px) {
+      .service-grid { grid-template-columns: repeat(2, 1fr); }
+      body { padding: 32px; }
+    }
+
+    @media (max-width: 640px) {
+      .service-grid { grid-template-columns: 1fr; }
+      body { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Organization Test Health</h1>
+    <p>my-org &middot; 6 services &middot; Last month</p>
+  </header>
+
+  <div class="service-grid">
+
+    <!-- payments-service — UNHEALTHY, declining -->
+    <div class="service-card unhealthy">
+      <div class="service-header">
+        <span class="service-name"><a href="repository-view.html">payments-service</a></span>
+        <div class="header-actions">
+          <details class="why-details">
+            <summary>Why</summary>
+            <div class="why-tooltip">
+              <div class="why-tooltip-title">What's happening?</div>
+              <div class="why-metric">
+                <span class="why-metric-label">Test-less PRs</span>
+                <span class="why-metric-value">38% &rarr; 62%</span>
+              </div>
+              <div class="why-metric">
+                <span class="why-metric-label">Developer engagement</span>
+                <span class="why-metric-value">-11% write tests</span>
+              </div>
+              <div class="why-metric">
+                <span class="why-metric-label">Best practices kept</span>
+                <span class="why-metric-value">40%</span>
+              </div>
+              <div class="why-metric">
+                <span class="why-metric-label">Test skill</span>
+                <span class="why-metric-value">Not present</span>
+              </div>
+              <div class="why-insight">Looks like newly onboarded developers write fewer tests</div>
+            </div>
+          </details>
+          <details class="action-details">
+            <summary>Action</summary>
+            <div class="action-tooltip">
+              <div class="action-tooltip-title">Suggested actions</div>
+              <div class="action-item">
+                <span class="action-number">1</span>
+                <span class="action-text">Deploy the testing skill. <a class="action-link" href="#">Click here</a></span>
+              </div>
+              <div class="action-item">
+                <span class="action-number">2</span>
+                <span class="action-text">Send Slack message to newly onboarded developers to perform the test training (part of the skill). <a class="action-link" href="#">Click here</a></span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="service-body">
+        <div class="gauge-container">
+          <svg width="120" height="70" viewBox="0 0 120 70">
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#F0F0F4" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#E8453C" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="91"/>
+            <text x="60" y="56" text-anchor="middle" font-size="24" font-weight="800" fill="#E8453C" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">42</text>
+          </svg>
+        </div>
+        <div class="sparkline-container">
+          <div class="sparkline-label">1-month trend</div>
+          <svg width="100%" height="40" viewBox="0 0 160 40" preserveAspectRatio="none">
+            <polyline points="0,8 15,10 29,13 44,15 58,18 73,21 87,24 102,27 116,30 131,33 145,36 160,39" fill="none" stroke="#E8453C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="0,8 15,10 29,13 44,15 58,18 73,21 87,24 102,27 116,30 131,33 145,36 160,39 160,40 0,40" fill="#E8453C" fill-opacity="0.06" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- user-service — HEALTHY, stable -->
+    <div class="service-card">
+      <div class="service-header">
+        <span class="service-name">user-service</span>
+      </div>
+      <div class="service-body">
+        <div class="gauge-container">
+          <svg width="120" height="70" viewBox="0 0 120 70">
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#F0F0F4" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#2DB574" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="19"/>
+            <text x="60" y="56" text-anchor="middle" font-size="24" font-weight="800" fill="#2DB574" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">88</text>
+          </svg>
+        </div>
+        <div class="sparkline-container">
+          <div class="sparkline-label">1-month trend</div>
+          <svg width="100%" height="40" viewBox="0 0 160 40" preserveAspectRatio="none">
+            <polyline points="0,8 15,8 29,9 44,7 58,8 73,9 87,7 102,8 116,8 131,7 145,8 160,8" fill="none" stroke="#2DB574" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="0,8 15,8 29,9 44,7 58,8 73,9 87,7 102,8 116,8 131,7 145,8 160,8 160,40 0,40" fill="#2DB574" fill-opacity="0.06" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- notification-service — HEALTHY, stable -->
+    <div class="service-card">
+      <div class="service-header">
+        <span class="service-name">notification-service</span>
+      </div>
+      <div class="service-body">
+        <div class="gauge-container">
+          <svg width="120" height="70" viewBox="0 0 120 70">
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#F0F0F4" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#2DB574" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="14"/>
+            <text x="60" y="56" text-anchor="middle" font-size="24" font-weight="800" fill="#2DB574" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">91</text>
+          </svg>
+        </div>
+        <div class="sparkline-container">
+          <div class="sparkline-label">1-month trend</div>
+          <svg width="100%" height="40" viewBox="0 0 160 40" preserveAspectRatio="none">
+            <polyline points="0,5 15,5 29,6 44,4 58,5 73,5 87,4 102,5 116,5 131,4 145,5 160,5" fill="none" stroke="#2DB574" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="0,5 15,5 29,6 44,4 58,5 73,5 87,4 102,5 116,5 131,4 145,5 160,5 160,40 0,40" fill="#2DB574" fill-opacity="0.06" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- order-service — UNHEALTHY, declining -->
+    <div class="service-card unhealthy">
+      <div class="service-header">
+        <span class="service-name"><a href="repository-view.html">order-service</a></span>
+        <div class="header-actions">
+          <details class="why-details">
+            <summary>Why</summary>
+            <div class="why-tooltip">
+              <div class="why-tooltip-title">What's happening?</div>
+              <div class="why-metric">
+                <span class="why-metric-label">Test-less PRs</span>
+                <span class="why-metric-value">31% &rarr; 48%</span>
+              </div>
+              <div class="why-metric">
+                <span class="why-metric-label">Developer engagement</span>
+                <span class="why-metric-value">-8% write tests</span>
+              </div>
+              <div class="why-metric">
+                <span class="why-metric-label">Best practices kept</span>
+                <span class="why-metric-value">40%</span>
+              </div>
+              <div class="why-metric">
+                <span class="why-metric-label">Test skill</span>
+                <span class="why-metric-value">Not present</span>
+              </div>
+              <div class="why-insight">Looks like newly onboarded developers write fewer tests</div>
+            </div>
+          </details>
+          <details class="action-details">
+            <summary>Action</summary>
+            <div class="action-tooltip">
+              <div class="action-tooltip-title">Suggested actions</div>
+              <div class="action-item">
+                <span class="action-number">1</span>
+                <span class="action-text">Deploy the testing skill. <a class="action-link" href="#">Click here</a></span>
+              </div>
+              <div class="action-item">
+                <span class="action-number">2</span>
+                <span class="action-text">Send Slack message to newly onboarded developers to perform the test training (part of the skill). <a class="action-link" href="#">Click here</a></span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="service-body">
+        <div class="gauge-container">
+          <svg width="120" height="70" viewBox="0 0 120 70">
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#F0F0F4" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#E8453C" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="77"/>
+            <text x="60" y="56" text-anchor="middle" font-size="24" font-weight="800" fill="#E8453C" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">51</text>
+          </svg>
+        </div>
+        <div class="sparkline-container">
+          <div class="sparkline-label">1-month trend</div>
+          <svg width="100%" height="40" viewBox="0 0 160 40" preserveAspectRatio="none">
+            <polyline points="0,10 15,12 29,15 44,17 58,20 73,22 87,25 102,28 116,31 131,34 145,36 160,38" fill="none" stroke="#E8453C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="0,10 15,12 29,15 44,17 58,20 73,22 87,25 102,28 116,31 131,34 145,36 160,38 160,40 0,40" fill="#E8453C" fill-opacity="0.06" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- inventory-service — HEALTHY, stable -->
+    <div class="service-card">
+      <div class="service-header">
+        <span class="service-name">inventory-service</span>
+      </div>
+      <div class="service-body">
+        <div class="gauge-container">
+          <svg width="120" height="70" viewBox="0 0 120 70">
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#F0F0F4" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#2DB574" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="24"/>
+            <text x="60" y="56" text-anchor="middle" font-size="24" font-weight="800" fill="#2DB574" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">85</text>
+          </svg>
+        </div>
+        <div class="sparkline-container">
+          <div class="sparkline-label">1-month trend</div>
+          <svg width="100%" height="40" viewBox="0 0 160 40" preserveAspectRatio="none">
+            <polyline points="0,10 15,11 29,10 44,11 58,10 73,10 87,11 102,10 116,10 131,11 145,10 160,10" fill="none" stroke="#2DB574" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="0,10 15,11 29,10 44,11 58,10 73,10 87,11 102,10 116,10 131,11 145,10 160,10 160,40 0,40" fill="#2DB574" fill-opacity="0.06" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- auth-service — HEALTHY, stable -->
+    <div class="service-card">
+      <div class="service-header">
+        <span class="service-name">auth-service</span>
+      </div>
+      <div class="service-body">
+        <div class="gauge-container">
+          <svg width="120" height="70" viewBox="0 0 120 70">
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#F0F0F4" stroke-width="8" stroke-linecap="round"/>
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#2DB574" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="33"/>
+            <text x="60" y="56" text-anchor="middle" font-size="24" font-weight="800" fill="#2DB574" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif">79</text>
+          </svg>
+        </div>
+        <div class="sparkline-container">
+          <div class="sparkline-label">1-month trend</div>
+          <svg width="100%" height="40" viewBox="0 0 160 40" preserveAspectRatio="none">
+            <polyline points="0,12 15,12 29,13 44,11 58,12 73,12 87,11 102,12 116,12 131,11 145,12 160,12" fill="none" stroke="#2DB574" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="0,12 15,12 29,13 44,11 58,12 73,12 87,11 102,12 116,12 131,11 145,12 160,12 160,40 0,40" fill="#2DB574" fill-opacity="0.06" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

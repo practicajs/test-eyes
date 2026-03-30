@@ -26,9 +26,6 @@ export class TestEyesReporter implements Reporter {
   constructor(options: TestEyesReporterOptions = {}) {
     this.options = {
       dataBranch: options.dataBranch ?? 'gh-data',
-      deployBranch: options.deployBranch ?? 'gh-pages',
-      deploy: options.deploy ?? true,
-      frontendDistPath: options.frontendDistPath ?? '',
       prNumber: options.prNumber ?? this.getPrNumber()
     }
   }
@@ -117,16 +114,11 @@ export class TestEyesReporter implements Reporter {
 
       const result = await collectFromRunData({
         runData,
-        dataBranch: this.options.dataBranch,
-        deployAfterCollect: this.options.deploy,
-        deployBranch: this.options.deployBranch
+        dataBranch: this.options.dataBranch
       })
 
       if (result.success) {
         this.log(result.message)
-        if (result.commitSha) {
-          this.log(`Committed: ${result.commitSha.slice(0, 7)}`)
-        }
       } else {
         this.logError(result.message)
       }

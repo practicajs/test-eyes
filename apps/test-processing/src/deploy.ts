@@ -34,7 +34,7 @@ export async function prepareSite(
   // Copy aggregated data
   const dataDestDir = path.join(siteDir, 'data')
   await ensureDir(dataDestDir)
-  await copyFile(dataFile, path.join(dataDestDir, 'main-test-data.json'))
+  await copyFile(dataFile, path.join(dataDestDir, 'test-summary.json'))
 }
 
 // ============================================================================
@@ -115,7 +115,7 @@ export async function deployDashboard(options: DeployDashboardOptions): Promise<
     targetBranch = 'gh-pages'
   } = options
 
-  const dataFile = path.join(dataDir, 'main-test-data.json')
+  const dataFile = path.join(dataDir, 'test-summary.json')
 
   return deployToGitHubPages({
     sourceDir: distDir,

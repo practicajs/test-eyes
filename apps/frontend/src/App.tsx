@@ -33,9 +33,9 @@ export default function App() {
       <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
         <div className="mx-auto max-w-6xl px-8 py-4">
           <Title size="h2" className="text-foreground">Test Eyes Dashboard</Title>
-          {meta && (
+          {meta?.lastAggregatedAt && (
             <p className="text-sm text-muted-foreground mt-1">
-              {meta.totalRuns} runs | Last updated: {new Date(meta.lastAggregatedAt).toLocaleString()}
+              Last updated: {new Date(meta.lastAggregatedAt).toLocaleString()}
             </p>
           )}
         </div>

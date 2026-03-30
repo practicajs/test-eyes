@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'util'
-import { deployDashboard, aggregate } from '../src/index.js'
-import { saveAggregatedData } from '../src/file-operations.js'
+import { deployDashboard, aggregateAndSummarize } from '../src/index.js'
+import { saveAggregatedData, saveTestHistory } from '../src/file-operations.js'
 
 // ============================================================================
 // CLI Commands
@@ -46,18 +46,32 @@ async function runDeploy(args: string[]): Promise<void> {
 }
 
 async function runAggregate(args: string[]): Promise<void> {
+  const { values } = parseArgs({
+    args,
+    options: {
+      'data-branch': { type: 'string', short: 'b', default: 'gh-data' }
+    },
+    allowPositionals: true
+  })
+
   const dataDir = args[0] || 'data'
-  const outputFile = `${dataDir}/main-test-data.json`
+  const dataBranch = values['data-branch']!
+  const historyFile = `${dataDir}/test-history.json`
+  const summaryFile = `${dataDir}/test-summary.json`
 
-  console.log(`Aggregating data from: ${dataDir}`)
-  const result = await aggregate({ dataDir })
+  console.log(`Aggregating data from: ${dataDir}/runs`)
+  console.log(`Data branch: ${dataBranch}`)
 
-  // Save aggregated data to disk
-  await saveAggregatedData(outputFile, result.data)
+  const { history, summary } = await aggregateAndSummarize(dataDir, dataBranch)
 
-  console.log(`✓ Aggregated ${result.totalRuns} runs, ${result.totalTests} tests`)
-  console.log(`  New files processed: ${result.newFilesProcessed}`)
-  console.log(`  Output: ${outputFile}`)
+  // Save both files to disk
+  await saveTestHistory(historyFile, history)
+  await saveAggregatedData(summaryFile, summary)
+
+  const totalTests = Object.keys(summary.tests).length
+  console.log(`✓ Aggregated ${totalTests} tests`)
+  console.log(`  History: ${historyFile}`)
+  console.log(`  Summary: ${summaryFile}`)
 }
 
 // ============================================================================
@@ -95,7 +109,7 @@ test-processing CLI
 
 Commands:
   deploy      Deploy dashboard to GitHub Pages
-  aggregate   Aggregate test data files
+  aggregate   Aggregate test data from run files
 
 Note: For collecting test data, use:
   - @practica/test-eyes (Playwright reporter)
@@ -103,7 +117,7 @@ Note: For collecting test data, use:
 
 Examples:
   tsx cli.ts deploy --dist-dir ./dist --data-dir ./data
-  tsx cli.ts aggregate ./data
+  tsx cli.ts aggregate ./data --data-branch gh-data
 
 Options:
   deploy:
@@ -111,6 +125,9 @@ Options:
     --data-dir          Data directory (default: data)
     --commit-sha, -c    Commit SHA (default: GITHUB_SHA env)
     --target-branch, -t Target branch (default: gh-pages)
+
+  aggregate:
+    --data-branch, -b   Data branch to fetch history from (default: gh-data)
 `)
 }
 

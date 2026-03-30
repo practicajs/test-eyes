@@ -9,9 +9,7 @@ export interface TestRow {
 }
 
 export interface AggregatedMeta {
-  totalRuns: number
-  lastAggregatedAt: string
-  processedFiles: string[]
+  lastAggregatedAt: string | null
 }
 
 export interface AggregatedData {

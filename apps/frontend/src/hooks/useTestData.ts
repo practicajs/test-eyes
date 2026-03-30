@@ -33,7 +33,7 @@ export function useTestData(): UseTestDataResult {
 
 async function fetchTestData() {
   const baseUrl = `${import.meta.env.BASE_URL}data`
-  const res = await fetch(`${baseUrl}/main-test-data.json`)
+  const res = await fetch(`${baseUrl}/test-summary.json`)
 
   if (!res.ok) {
     throw new Error('No aggregated data yet')

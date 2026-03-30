@@ -4,15 +4,10 @@ import type {
   GitConfig,
   CommitResult,
   PushResult,
-  RunData,
   AggregatedData,
+  TestHistory,
 } from "./types.js";
-import {
-  saveTestData,
-  saveAggregatedData,
-  loadAggregatedData as loadFromDisk,
-  ensureDir,
-} from "./file-operations.js";
+import { loadAggregatedData as loadFromDisk } from "./file-operations.js";
 
 const execAsync = promisify(exec);
 
@@ -125,10 +120,13 @@ export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
 const EMPTY_AGGREGATED_DATA: AggregatedData = {
   schemaVersion: "1.0.0",
   meta: {
-    totalRuns: 0,
     lastAggregatedAt: null,
-    processedFiles: [],
   },
+  tests: {},
+};
+
+const EMPTY_TEST_HISTORY: TestHistory = {
+  schemaVersion: "1.0.0",
   tests: {},
 };
 
@@ -141,7 +139,7 @@ const EMPTY_AGGREGATED_DATA: AggregatedData = {
  */
 export async function fetchAggregatedData(
   branch: string,
-  filepath: string = "data/main-test-data.json",
+  filepath: string = "data/test-summary.json",
 ): Promise<AggregatedData> {
   // Fallback to disk if no branch specified
   if (!branch) {
@@ -158,6 +156,31 @@ export async function fetchAggregatedData(
     return JSON.parse(result.stdout) as AggregatedData;
   } catch {
     return { ...EMPTY_AGGREGATED_DATA };
+  }
+}
+
+/**
+ * Fetches test history directly from a git branch using `git show`.
+ * No checkout required - reads file content directly from remote.
+ */
+export async function fetchTestHistory(
+  branch: string,
+  filepath: string = "data/test-history.json",
+): Promise<TestHistory> {
+  if (!branch) {
+    return { ...EMPTY_TEST_HISTORY };
+  }
+
+  const result = await runGitSafe(`show origin/${branch}:${filepath}`);
+
+  if (!result.success || !result.stdout.trim()) {
+    return { ...EMPTY_TEST_HISTORY };
+  }
+
+  try {
+    return JSON.parse(result.stdout) as TestHistory;
+  } catch {
+    return { ...EMPTY_TEST_HISTORY };
   }
 }
 
@@ -212,6 +235,27 @@ export async function push(branch: string, force = false): Promise<PushResult> {
   }
 }
 
+/**
+ * Push with retry on conflict. Uses rebase to resolve conflicts.
+ * Safe because run files have unique names (no actual merge conflicts).
+ */
+export async function pushWithRetry(
+  branch: string,
+  maxRetries: number = 3,
+): Promise<PushResult> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const result = await push(branch);
+    if (result.success) {
+      return result;
+    }
+
+    // Pull latest and rebase before retry
+    await runGitSafe(`pull --rebase origin ${branch}`);
+  }
+
+  return { success: false, message: `Failed after ${maxRetries} retries` };
+}
+
 export async function pushWithUpstream(
   localBranch: string,
   remoteBranch: string,
@@ -249,46 +293,3 @@ export async function getCurrentSha(): Promise<string> {
   return stdout.trim();
 }
 
-// ============================================================================
-// Push to GitHub (Stubbable Boundary for Testing)
-// ============================================================================
-
-export interface PushTestDataOptions {
-  branch: string;
-  message: string;
-  runData: RunData;
-  runDataFilename: string;
-  aggregatedData: AggregatedData;
-}
-
-/**
- * Stubbable boundary for testing. Accepts data directly for type safety.
- * Handles file writing + git stage + commit + push.
- * Flow tests stub only this function while running all upstream code for real.
- */
-export async function pushToGitHub(
-  options: PushTestDataOptions,
-): Promise<string | null> {
-  const { branch, message, runData, runDataFilename, aggregatedData } = options;
-
-  // Write data to files
-  const dataDir = "data";
-  await ensureDir(dataDir);
-  await saveTestData(dataDir, runDataFilename, runData);
-  await saveAggregatedData(`${dataDir}/main-test-data.json`, aggregatedData);
-
-  // Stage, commit, push
-  await stageFiles([dataDir]);
-
-  if (!(await hasChanges())) {
-    return null;
-  }
-
-  const result = await commit(message);
-  if (!result.success || !result.commitSha) {
-    return null;
-  }
-
-  await push(branch);
-  return result.commitSha;
-}

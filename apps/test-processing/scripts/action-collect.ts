@@ -4,7 +4,7 @@
  * This script is bundled to action-dist/scripts/collector.mjs
  */
 import { parseArgs } from 'util'
-import { collectTestData } from '../src/index.js'
+import { collectFromRunData, parseAndBuildRunData } from '../src/index.js'
 
 async function main(): Promise<void> {
   const { values } = parseArgs({
@@ -32,18 +32,22 @@ async function main(): Promise<void> {
   console.log(`   Commit SHA: ${commitSha}`)
   console.log(`   Data branch: ${dataBranch}`)
 
-  const result = await collectTestData({
-    junitPath,
-    outputPath: 'test-data.json',
-    dataBranch,
-    commitSha,
-    prNumber
+  // Step 1: Parse JUnit XML into RunData
+  console.log('Parsing JUnit file...')
+  const runData = await parseAndBuildRunData(junitPath, { commitSha, prNumber })
+  console.log(`Found ${runData.tests.length} tests`)
+
+  // Step 2: Push run file (no aggregation - that happens in cron)
+  const result = await collectFromRunData({
+    runData,
+    dataBranch
   })
 
   if (result.success) {
     console.log(`✅ ${result.message}`)
-    console.log(`   Tests found: ${result.testsFound}`)
-    console.log(`   Total runs: ${result.aggregatedRuns}`)
+    if (result.runData) {
+      console.log(`   Run ID: ${result.runData.runId}`)
+    }
   } else {
     console.error(`❌ ${result.message}`)
     process.exit(1)

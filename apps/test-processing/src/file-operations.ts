@@ -1,7 +1,7 @@
 import { readFile, writeFile, readdir, mkdir, cp, rm } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
-import type { RunData, AggregatedData } from './types.js'
+import type { RunData, AggregatedData, TestHistory } from './types.js'
 
 // ============================================================================
 // Directory Operations
@@ -37,8 +37,8 @@ export async function removeDir(dirPath: string): Promise<void> {
 export function generateTestDataFilename(commitSha: string): string {
   const date = new Date().toISOString().split('T')[0]
   const shortSha = commitSha.slice(0, 7)
-  const timestamp = Date.now()
-  return `${date}_${shortSha}_${timestamp}.json`
+  const random = Math.random().toString(16).slice(2, 6)  // 4-char hex suffix
+  return `${date}_${shortSha}_${random}.json`
 }
 
 export async function saveTestData(dataDir: string, filename: string, data: RunData): Promise<string> {
@@ -66,9 +66,7 @@ export async function loadAggregatedData(filepath: string): Promise<AggregatedDa
     return {
       schemaVersion: '1.0.0',
       meta: {
-        totalRuns: 0,
-        lastAggregatedAt: null,
-        processedFiles: []
+        lastAggregatedAt: null
       },
       tests: {}
     }
@@ -82,6 +80,33 @@ export async function saveAggregatedData(filepath: string, data: AggregatedData)
   const dir = path.dirname(filepath)
   await ensureDir(dir)
   await writeFile(filepath, JSON.stringify(data, null, 2))
+}
+
+// ============================================================================
+// Test History Files
+// ============================================================================
+
+export async function loadTestHistory(filepath: string): Promise<TestHistory> {
+  if (!existsSync(filepath)) {
+    return { schemaVersion: '1.0.0', tests: {} }
+  }
+
+  const content = await readFile(filepath, 'utf-8')
+  return JSON.parse(content) as TestHistory
+}
+
+export async function saveTestHistory(filepath: string, data: TestHistory): Promise<void> {
+  const dir = path.dirname(filepath)
+  await ensureDir(dir)
+  await writeFile(filepath, JSON.stringify(data, null, 2))
+}
+
+// ============================================================================
+// File Operations
+// ============================================================================
+
+export async function deleteFile(filepath: string): Promise<void> {
+  await rm(filepath)
 }
 
 // ============================================================================
@@ -99,14 +124,6 @@ export async function findJsonFiles(dataDir: string, exclude: string[] = []): Pr
   return files.filter(
     (f: string) => f.endsWith('.json') && !excludeSet.has(f)
   )
-}
-
-export async function findUnprocessedFiles(
-  dataDir: string,
-  processedFiles: Set<string>
-): Promise<string[]> {
-  const allFiles = await findJsonFiles(dataDir, ['main-test-data.json', 'index.json'])
-  return allFiles.filter((f: string) => !processedFiles.has(f))
 }
 
 // ============================================================================

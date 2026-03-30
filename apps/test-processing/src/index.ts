@@ -9,23 +9,24 @@ export type {
   TestStats,
   AggregatedMeta,
   AggregatedData,
-  CollectOptions,
+  TestHistory,
+  RecentExecution,
   CollectFromRunDataOptions
 } from './types.js'
 
 // Aggregation
 export {
-  aggregate,
-  type AggregateResult,
-  type AggregateOptions
+  aggregateAndSummarize,
+  deriveStats,
+  isValidRunData
 } from './aggregate.js'
 
 // Collection (main entry points)
 export {
-  collectTestData,
   collectFromRunData,
+  pushRunData,
   type CollectResult,
-  type CollectFromRunDataResult
+  type PushRunDataOptions
 } from './collector.js'
 
 // JUnit Parser (for junit collector)
@@ -33,10 +34,17 @@ export { parseAndBuildRunData } from './junit-parser.js'
 
 // Git Operations (stubbable boundaries for testing)
 export {
-  pushToGitHub,
-  fetchAggregatedData,
-  type PushTestDataOptions
+  fetchTestHistory,
+  fetchAggregatedData
 } from './git-operations.js'
+
+// File Operations
+export {
+  saveTestHistory,
+  loadTestHistory,
+  saveAggregatedData,
+  findJsonFiles
+} from './file-operations.js'
 
 // Deploy
 export {

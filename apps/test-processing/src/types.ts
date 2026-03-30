@@ -6,8 +6,9 @@ export interface TestResult {
   name: string
   durationMs: number
   status: 'passed' | 'failed' | 'skipped'
-  wasFlaky?: boolean // true if test failed then passed on retry
-  retries?: number   // number of retry attempts
+  wasFlaky?: boolean      // true if test failed then passed on retry
+  retries?: number        // number of retry attempts
+  failureMessage?: string // error message if test failed
 }
 
 export interface RunData {
@@ -19,7 +20,25 @@ export interface RunData {
 }
 
 // ============================================================================
-// Aggregated Data Types
+// Test History Types (Source of Truth)
+// ============================================================================
+
+export interface RecentExecution {
+  runId: string
+  status: 'passed' | 'failed' | 'skipped'
+  durationMs: number
+  timestamp: string         // ISO timestamp
+  failureMessage?: string
+  wasFlaky?: boolean
+}
+
+export interface TestHistory {
+  schemaVersion: string
+  tests: Record<string, RecentExecution[]>  // key = test name, capped at 200
+}
+
+// ============================================================================
+// Aggregated Data Types (Derived from TestHistory)
 // ============================================================================
 
 export interface TestStats {
@@ -32,9 +51,7 @@ export interface TestStats {
 }
 
 export interface AggregatedMeta {
-  totalRuns: number
   lastAggregatedAt: string | null
-  processedFiles: string[]
 }
 
 export interface AggregatedData {
@@ -106,6 +123,4 @@ export interface DeployOptions {
 export interface CollectFromRunDataOptions {
   runData: RunData
   dataBranch: string
-  deployAfterCollect?: boolean
-  deployBranch?: string
 }

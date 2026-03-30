@@ -8,6 +8,10 @@ on:
     workflows: ["Collect Test Data"]
     types: [completed]
 
+concurrency:
+  group: test-eyes-aggregate
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pages: write

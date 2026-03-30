@@ -1,10 +1,16 @@
 import path from 'path'
-import type { AggregatedData, TestStats, RunData } from './types.js'
-import { findUnprocessedFiles, loadTestData } from './file-operations.js'
-import { fetchAggregatedData } from './git-operations.js'
+import type {
+  AggregatedData,
+  TestStats,
+  RunData,
+  TestHistory,
+  RecentExecution
+} from './types.js'
+import { findJsonFiles, loadTestData, deleteFile } from './file-operations.js'
+import { fetchTestHistory } from './git-operations.js'
 
 // ============================================================================
-// Statistics Calculation
+// Statistics Calculation (UNCHANGED)
 // ============================================================================
 
 export function calculateP95(values: number[]): number {
@@ -20,7 +26,7 @@ export function calculateAverage(values: number[]): number {
 }
 
 // ============================================================================
-// Data Validation
+// Data Validation (UNCHANGED)
 // ============================================================================
 
 export function isValidRunData(data: unknown): data is RunData {
@@ -42,59 +48,21 @@ export function isValidRunData(data: unknown): data is RunData {
 }
 
 // ============================================================================
-// Test Processing
+// Derive Stats from Executions
 // ============================================================================
 
-function createEmptyStats(): TestStats {
+const HISTORY_CAP = 200
+
+export function deriveStats(executions: RecentExecution[]): TestStats {
+  const durations = executions.map(e => e.durationMs)
+
   return {
-    totalRuns: 0,
-    passCount: 0,
-    failCount: 0,
-    flakyCount: 0,
-    avgDurationMs: 0,
-    p95DurationMs: 0
-  }
-}
-
-export function processTestRun(
-  data: AggregatedData,
-  durations: Map<string, number[]>,
-  runData: RunData,
-  filename: string
-): void {
-  data.meta.totalRuns++
-  data.meta.processedFiles.push(filename)
-
-  for (const test of runData.tests) {
-    if (!data.tests[test.name]) {
-      data.tests[test.name] = createEmptyStats()
-      durations.set(test.name, [])
-    }
-
-    const stats = data.tests[test.name]
-    stats.totalRuns++
-
-    if (test.status === 'passed') {
-      stats.passCount++
-    } else if (test.status === 'failed') {
-      stats.failCount++
-    }
-
-    if (test.wasFlaky) {
-      stats.flakyCount++
-    }
-
-    durations.get(test.name)!.push(test.durationMs)
-  }
-}
-
-export function recalculateStats(data: AggregatedData, durations: Map<string, number[]>): void {
-  for (const [testName, stats] of Object.entries(data.tests)) {
-    const testDurations = durations.get(testName) || []
-    if (testDurations.length > 0) {
-      stats.avgDurationMs = calculateAverage(testDurations)
-      stats.p95DurationMs = calculateP95(testDurations)
-    }
+    totalRuns: executions.length,
+    passCount: executions.filter(e => e.status === 'passed').length,
+    failCount: executions.filter(e => e.status === 'failed').length,
+    flakyCount: executions.filter(e => e.wasFlaky).length,
+    avgDurationMs: calculateAverage(durations),
+    p95DurationMs: calculateP95(durations)
   }
 }
 
@@ -102,71 +70,70 @@ export function recalculateStats(data: AggregatedData, durations: Map<string, nu
 // Main Aggregation Function
 // ============================================================================
 
-export interface AggregateResult {
-  success: boolean
-  totalRuns: number
-  totalTests: number
-  newFilesProcessed: number
-  data: AggregatedData
-}
-
-export interface AggregateOptions {
-  dataDir: string
-  dataBranch?: string
-  currentRunData?: RunData
-  currentRunFilename?: string
-}
-
 /**
- * Aggregates test run data from existing files on disk.
- * Does NOT write to disk - returns the aggregated data for the caller to handle.
+ * Aggregates test run data: reads run files from inbox, ingests into history,
+ * derives summary stats, deletes processed run files.
+ * Caller writes both files to disk, commits, and pushes to gh-data.
  */
-export async function aggregate(options: AggregateOptions): Promise<AggregateResult> {
-  const { dataDir, dataBranch, currentRunData, currentRunFilename } = options
-  const filepath = path.join(dataDir, 'main-test-data.json')
+export async function aggregateAndSummarize(
+  dataDir: string,
+  dataBranch: string = 'gh-data'
+): Promise<{ history: TestHistory; summary: AggregatedData }> {
+  const runsDir = path.join(dataDir, 'runs')
 
-  // Fetch existing data: from git branch if specified, otherwise from disk
-  const data = dataBranch
-    ? await fetchAggregatedData(dataBranch, filepath)
-    : await fetchAggregatedData('', filepath) // empty branch = read from disk fallback
+  // ═══════════════════════════════════════════════════════════════════════
+  // AGGREGATOR — ingest run files into test-history.json
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // Use Set for O(1) lookup
-  const processedSet = new Set(data.meta.processedFiles)
-  const newFiles = await findUnprocessedFiles(dataDir, processedSet)
+  // Step 1: Read existing history
+  const history = await fetchTestHistory(dataBranch)
 
-  // Reconstruct durations from existing stats
-  const durations = new Map<string, number[]>()
-  for (const [testName, stats] of Object.entries(data.tests)) {
-    durations.set(testName, Array(stats.totalRuns).fill(stats.avgDurationMs))
-  }
+  // Step 2: Find all run files in the inbox
+  const runFiles = await findJsonFiles(runsDir)
 
-  // Process files from disk
-  for (const filename of newFiles) {
-    const filepath = path.join(dataDir, filename)
-    const runData = await loadTestData(filepath)
+  // Step 3: Ingest each run file into history
+  for (const filename of runFiles) {
+    const filepath = path.join(runsDir, filename)
+    const run = await loadTestData(filepath)
+    if (!run || !isValidRunData(run)) continue
 
-    if (runData && isValidRunData(runData)) {
-      processTestRun(data, durations, runData, filename)
-    } else {
-      console.warn(`Skipping invalid file: ${filename}`)
+    for (const test of run.tests) {
+      if (!history.tests[test.name]) {
+        history.tests[test.name] = []
+      }
+
+      history.tests[test.name].push({
+        runId: run.runId,
+        status: test.status,
+        durationMs: test.durationMs,
+        timestamp: run.createdAt,
+        failureMessage: test.failureMessage,
+        wasFlaky: test.wasFlaky ?? false
+      })
+
+      // Cap at 200 — drop oldest entries
+      if (history.tests[test.name].length > HISTORY_CAP) {
+        history.tests[test.name] = history.tests[test.name].slice(-HISTORY_CAP)
+      }
     }
+
+    await deleteFile(filepath)  // processed — remove from inbox
   }
 
-  // Process current run data if provided (not yet on disk)
-  if (currentRunData && currentRunFilename) {
-    if (!processedSet.has(currentRunFilename)) {
-      processTestRun(data, durations, currentRunData, currentRunFilename)
-    }
+  // ═══════════════════════════════════════════════════════════════════════
+  // SUMMARIZER — derive test-summary.json from test-history.json
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const summary: AggregatedData = {
+    schemaVersion: '1.0.0',
+    meta: { lastAggregatedAt: new Date().toISOString() },
+    tests: {}
   }
 
-  recalculateStats(data, durations)
-  data.meta.lastAggregatedAt = new Date().toISOString()
-
-  return {
-    success: true,
-    totalRuns: data.meta.totalRuns,
-    totalTests: Object.keys(data.tests).length,
-    newFilesProcessed: newFiles.length + (currentRunData ? 1 : 0),
-    data
+  for (const [testName, executions] of Object.entries(history.tests)) {
+    summary.tests[testName] = deriveStats(executions)
   }
+
+  // Caller writes both files to disk, commits, and pushes to gh-data
+  return { history, summary }
 }

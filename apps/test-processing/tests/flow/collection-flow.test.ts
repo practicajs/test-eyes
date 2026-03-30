@@ -203,8 +203,8 @@ describe('Collection Flow', () => {
 
   it('10.6 Not in CI — nothing pushed', async () => {
     // WHEN CI environment variable is not set
-    delete process.env.CI
-    delete process.env.GITHUB_ACTIONS
+    process.env.CI = ''
+    process.env.GITHUB_ACTIONS = ''
 
     reporter = new TestEyesReporter({ dataBranch: 'gh-data' })
     reporter.onBegin({} as FullConfig, {} as Suite)

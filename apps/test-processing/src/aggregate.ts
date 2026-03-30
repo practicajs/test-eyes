@@ -51,7 +51,7 @@ export function isValidRunData(data: unknown): data is RunData {
 // Derive Stats from Executions
 // ============================================================================
 
-const HISTORY_CAP = 200
+export const HISTORY_CAP = 200
 
 export function deriveStats(executions: RecentExecution[]): TestStats {
   const durations = executions.map(e => e.durationMs)

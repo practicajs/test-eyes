@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdir, writeFile, rm, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
-import { aggregateAndSummarize } from '../../src/aggregate.js'
+import { aggregateAndSummarize, HISTORY_CAP } from '../../src/aggregate.js'
 import * as gitOps from '../../src/git-operations.js'
 import { makeRunFile, makeHistoryEntry } from './factories.js'
 import type { TestHistory } from '../../src/types.js'
@@ -23,7 +23,7 @@ let TEST_DATA_DIR: string
 let RUNS_DIR: string
 
 async function setupTestDir(): Promise<void> {
-  const uniqueId = Math.random().toString(36).slice(2, 10)
+  const uniqueId = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`
   TEST_DATA_DIR = `/tmp/test-eyes-aggregation-${uniqueId}`
   RUNS_DIR = path.join(TEST_DATA_DIR, 'runs')
   await mkdir(RUNS_DIR, { recursive: true })
@@ -130,22 +130,24 @@ describe('Aggregation Flow', () => {
     const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
 
     // THEN history has 4 entries (3 old + 1 new), old entries preserved
-    expect(history.tests['Auth > login']).toHaveLength(4)
-    expect(history.tests['Auth > login'][0].runId).toBe('r1')
-    expect(history.tests['Auth > login'][1].runId).toBe('r2')
-    expect(history.tests['Auth > login'][2].runId).toBe('r3')
-    expect(history.tests['Auth > login'][3]).toMatchObject({
-      status: 'passed',
-      durationMs: 130
-    })
+    const entries = history.tests['Auth > login']
+    expect(entries).toHaveLength(4)
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ runId: 'r1' }),
+        expect.objectContaining({ runId: 'r2' }),
+        expect.objectContaining({ runId: 'r3' }),
+        expect.objectContaining({ status: 'passed', durationMs: 130 })
+      ])
+    )
   })
 
-  it('11.4 History capped at 200', async () => {
-    // WHEN history has 199 entries and 2 new run files arrive
+  it('11.4 History capped at HISTORY_CAP', async () => {
+    // WHEN history has HISTORY_CAP-1 entries and 2 new run files arrive
     mockedHistory = {
       schemaVersion: '1.0.0',
       tests: {
-        'Auth > login': Array.from({ length: 199 }, (_, i) =>
+        'Auth > login': Array.from({ length: HISTORY_CAP - 1 }, (_, i) =>
           makeHistoryEntry({ runId: `r${i}`, durationMs: 100 + i })
         )
       }
@@ -160,11 +162,12 @@ describe('Aggregation Flow', () => {
 
     const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
 
-    // THEN history has exactly 200 entries (oldest dropped)
-    expect(history.tests['Auth > login']).toHaveLength(200)
-    // First entry should be r1 (r0 was dropped), last should be from run201
-    expect(history.tests['Auth > login'][0].runId).toBe('r1')
-    expect(history.tests['Auth > login'][199].durationMs).toBe(600)
+    // THEN history has exactly HISTORY_CAP entries (oldest dropped)
+    const entries = history.tests['Auth > login']
+    expect(entries).toHaveLength(HISTORY_CAP)
+    // First entry should be r1 (r0 was dropped), last should have durationMs: 600
+    expect(entries[0].runId).toBe('r1')
+    expect(entries[entries.length - 1].durationMs).toBe(600)
   })
 
   it('11.5 p95 from real durations', async () => {

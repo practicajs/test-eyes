@@ -18,7 +18,8 @@ export type {
 export {
   aggregateAndSummarize,
   deriveStats,
-  isValidRunData
+  isValidRunData,
+  HISTORY_CAP
 } from './aggregate.js'
 
 // Collection (main entry points)

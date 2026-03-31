@@ -36,6 +36,9 @@ export async function collectFromRunData(
   const { runData, dataBranch } = options
 
   try {
+    // Save original branch before switching
+    const originalBranch = await getCurrentBranch()
+
     // Configure git
     await configureGit(getDefaultGitConfig())
     await fetchBranches([dataBranch])
@@ -57,7 +60,6 @@ export async function collectFromRunData(
     }
 
     // Return to original branch
-    const originalBranch = await getCurrentBranch()
     if (originalBranch && originalBranch !== dataBranch) {
       await checkoutOrCreateBranch(originalBranch)
     }

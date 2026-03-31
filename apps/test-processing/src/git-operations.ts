@@ -100,8 +100,8 @@ export async function checkoutBranch(
 }
 
 export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
-  // Try 1: checkout existing local branch
-  const result = await runGitSafe(`checkout ${branch}`);
+  // Try 1: checkout existing local branch (force to discard local changes)
+  const result = await runGitSafe(`checkout -f ${branch}`);
   if (result.success) {
     return false;
   }
@@ -112,7 +112,14 @@ export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
     return false;
   }
 
-  // Try 3: create new orphan branch
+  // Try 3: create new orphan branch (only if branch doesn't exist)
+  const branchExists = await runGitSafe(`show-ref --verify --quiet refs/heads/${branch}`);
+  if (branchExists.success) {
+    // Branch exists but checkout failed - force checkout
+    await runGit(`checkout -f ${branch}`);
+    return false;
+  }
+
   await runGit(`checkout --orphan ${branch}`);
   return true;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@practica/test-eyes-junit",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "JUnit XML collector for Test Eyes analytics dashboard",
   "type": "module",
   "main": "dist/index.js",

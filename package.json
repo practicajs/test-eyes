@@ -1,6 +1,7 @@
 {
   "name": "test-eyes",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "turbo build",
@@ -11,14 +12,18 @@
     "test": "turbo test",
     "test:flow": "vitest run --config vitest.config.ts",
     "dev": "turbo dev",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.52.0",
     "@vitest/coverage-v8": "^3.2.4",
     "esbuild": "^0.27.3",
+    "eslint": "^9.39.1",
     "turbo": "^2.4.0",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.48.0",
     "vitest": "^3.0.0"
   }
 }

@@ -4,6 +4,9 @@
  * Entry point: aggregateAndSummarize() function
  * Stub boundary: fetchTestHistory (existing history), file system (run files)
  * Assert on: returned history and summary objects
+ *
+ * Note: Uses real /tmp file system intentionally - this is a flow/integration test
+ * that verifies the full aggregation pipeline including file I/O operations.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -13,42 +16,26 @@ import path from 'path'
 import { aggregateAndSummarize, HISTORY_CAP } from '../../src/aggregate.js'
 import * as gitOps from '../../src/git-operations.js'
 import { makeRunFile, makeHistoryEntry } from './factories.js'
+import { createRunFilesWithDurations } from './helpers.js'
 import type { TestHistory } from '../../src/types.js'
 
 // ============================================================================
-// Test Data Directory
+// Stub Setup - Using vi.hoisted() for proper isolation
 // ============================================================================
 
-let TEST_DATA_DIR: string
-let RUNS_DIR: string
-
-async function setupTestDir(): Promise<void> {
-  const uniqueId = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`
-  TEST_DATA_DIR = `/tmp/test-eyes-aggregation-${uniqueId}`
-  RUNS_DIR = path.join(TEST_DATA_DIR, 'runs')
-  await mkdir(RUNS_DIR, { recursive: true })
-}
-
-async function writeRunFile(filename: string, runData: ReturnType<typeof makeRunFile>): Promise<void> {
-  await writeFile(path.join(RUNS_DIR, filename), JSON.stringify(runData, null, 2))
-}
-
-async function getRunFiles(): Promise<string[]> {
-  if (!existsSync(RUNS_DIR)) return []
-  return readdir(RUNS_DIR)
-}
-
-// ============================================================================
-// Stub Setup
-// ============================================================================
-
-let mockedHistory: TestHistory = { schemaVersion: '1.0.0', tests: {} }
+const { getMockedHistory, setMockedHistory } = vi.hoisted(() => {
+  let _mockedHistory: TestHistory = { schemaVersion: '1.0.0', tests: {} }
+  return {
+    getMockedHistory: () => _mockedHistory,
+    setMockedHistory: (history: TestHistory) => { _mockedHistory = history }
+  }
+})
 
 vi.mock('../../src/git-operations.js', async (importOriginal) => {
   const actual = await importOriginal<typeof gitOps>()
   return {
     ...actual,
-    fetchTestHistory: vi.fn(async () => mockedHistory)
+    fetchTestHistory: vi.fn(async () => getMockedHistory())
   }
 })
 
@@ -57,10 +44,29 @@ vi.mock('../../src/git-operations.js', async (importOriginal) => {
 // ============================================================================
 
 describe('Aggregation Flow', () => {
+  let TEST_DATA_DIR: string
+  let RUNS_DIR: string
+
+  async function setupTestDir(): Promise<void> {
+    const uniqueId = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`
+    TEST_DATA_DIR = `/tmp/test-eyes-aggregation-${uniqueId}`
+    RUNS_DIR = path.join(TEST_DATA_DIR, 'runs')
+    await mkdir(RUNS_DIR, { recursive: true })
+  }
+
+  async function writeRunFile(filename: string, runData: ReturnType<typeof makeRunFile>): Promise<void> {
+    await writeFile(path.join(RUNS_DIR, filename), JSON.stringify(runData, null, 2))
+  }
+
+  async function getRunFiles(): Promise<string[]> {
+    if (!existsSync(RUNS_DIR)) return []
+    return readdir(RUNS_DIR)
+  }
+
   beforeEach(async () => {
-    mockedHistory = { schemaVersion: '1.0.0', tests: {} }
-    await setupTestDir()
     vi.clearAllMocks()
+    setMockedHistory({ schemaVersion: '1.0.0', tests: {} })
+    await setupTestDir()
   })
 
   afterEach(async () => {
@@ -69,7 +75,7 @@ describe('Aggregation Flow', () => {
     }
   })
 
-  it('11.1 Single run, single test', async () => {
+  it('When single run with single test, then history and summary contain one entry', async () => {
     // WHEN no history exists and 1 run file has Auth > login passing at 200ms
     const runFile = makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 200, status: 'passed' }]
@@ -89,7 +95,7 @@ describe('Aggregation Flow', () => {
     )
   })
 
-  it('11.2 Multiple run files processed', async () => {
+  it('When multiple run files exist, then all are aggregated into history', async () => {
     // WHEN no history exists and 2 run files each have Auth > login (200ms, 300ms)
     await writeRunFile('run1.json', makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 200, status: 'passed' }]
@@ -110,9 +116,9 @@ describe('Aggregation Flow', () => {
     )
   })
 
-  it('11.3 New runs append to existing history', async () => {
+  it('When new runs arrive, then they append to existing history', async () => {
     // WHEN history has 3 entries for Auth > login and 1 new run file arrives
-    mockedHistory = {
+    setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
         'Auth > login': [
@@ -121,7 +127,7 @@ describe('Aggregation Flow', () => {
           makeHistoryEntry({ runId: 'r3', durationMs: 120 })
         ]
       }
-    }
+    })
 
     await writeRunFile('run4.json', makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 130, status: 'passed' }]
@@ -142,16 +148,16 @@ describe('Aggregation Flow', () => {
     )
   })
 
-  it('11.4 History capped at HISTORY_CAP', async () => {
+  it('When history exceeds cap, then oldest entries are dropped', async () => {
     // WHEN history has HISTORY_CAP-1 entries and 2 new run files arrive
-    mockedHistory = {
+    setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
         'Auth > login': Array.from({ length: HISTORY_CAP - 1 }, (_, i) =>
           makeHistoryEntry({ runId: `r${i}`, durationMs: 100 + i })
         )
       }
-    }
+    })
 
     await writeRunFile('run200.json', makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 500, status: 'passed' }]
@@ -162,34 +168,25 @@ describe('Aggregation Flow', () => {
 
     const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
 
-    // THEN history has exactly HISTORY_CAP entries (oldest dropped)
     const entries = history.tests['Auth > login']
     expect(entries).toHaveLength(HISTORY_CAP)
-    // First entry should be r1 (r0 was dropped), last should have durationMs: 600
-    expect(entries[0].runId).toBe('r1')
-    expect(entries[entries.length - 1].durationMs).toBe(600)
+    expect(entries[0].runId).toBe('r1') // r0 was dropped
+    expect(entries.at(-1)?.durationMs).toBe(600)
   })
 
-  it('11.5 p95 from real durations', async () => {
-    // WHEN 10 run files for Auth > login with specific durations
+  it('When calculating p95, then uses real 95th percentile of durations', async () => {
     const durations = [100, 150, 200, 250, 300, 350, 400, 450, 500, 2000]
-
-    // Create 10 separate run files to get 10 history entries
-    for (let i = 0; i < durations.length; i++) {
-      await writeRunFile(`run${i}.json`, makeRunFile({
-        tests: [{ name: 'Auth > login', durationMs: durations[i], status: 'passed' }]
-      }))
-    }
+    await createRunFilesWithDurations(RUNS_DIR, 'Auth > login', durations)
 
     const { summary } = await aggregateAndSummarize(TEST_DATA_DIR)
 
-    // THEN summary has p95DurationMs: 2000 (real 95th percentile, NOT average of 470)
-    expect(summary.tests['Auth > login'].p95DurationMs).toBe(2000)
-    // Verify avg is NOT 2000 (to confirm p95 is different from avg)
-    expect(summary.tests['Auth > login'].avgDurationMs).toBe(470)
+    expect(summary.tests['Auth > login']).toEqual(expect.objectContaining({
+      p95DurationMs: 2000,
+      avgDurationMs: 470
+    }))
   })
 
-  it('11.6 Mixed pass/fail/flaky counts', async () => {
+  it('When tests have mixed results, then summary counts pass/fail/flaky correctly', async () => {
     // WHEN 3 run files for Auth > login: passed, failed, passed+flaky
     await writeRunFile('run1.json', makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 100, status: 'passed', wasFlaky: false }]
@@ -213,14 +210,14 @@ describe('Aggregation Flow', () => {
     )
   })
 
-  it('11.7 New test added to history', async () => {
+  it('When new test appears in run, then it is added to history', async () => {
     // WHEN history has Auth > login and run file has Auth > login AND Checkout > pay
-    mockedHistory = {
+    setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
         'Auth > login': [makeHistoryEntry({ runId: 'r1', durationMs: 100 })]
       }
-    }
+    })
 
     await writeRunFile('run2.json', makeRunFile({
       tests: [
@@ -238,16 +235,16 @@ describe('Aggregation Flow', () => {
     expect(summary.tests['Checkout > pay']).toBeDefined()
   })
 
-  it('11.8 Unmentioned test preserved', async () => {
+  it('When test not in current run, then its history is preserved', async () => {
     // WHEN history has Auth > login (5 entries) and run file has only Checkout > pay
-    mockedHistory = {
+    setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
         'Auth > login': Array.from({ length: 5 }, (_, i) =>
           makeHistoryEntry({ runId: `r${i}`, durationMs: 100 + i * 10 })
         )
       }
-    }
+    })
 
     await writeRunFile('run6.json', makeRunFile({
       tests: [{ name: 'Checkout > pay', durationMs: 500, status: 'passed' }]
@@ -262,7 +259,7 @@ describe('Aggregation Flow', () => {
     expect(summary.tests['Checkout > pay'].totalRuns).toBe(1)
   })
 
-  it('11.9 Run files deleted after processing', async () => {
+  it('When aggregation completes, then run files are deleted', async () => {
     // WHEN 2 run files in inbox and aggregation succeeds
     await writeRunFile('run1.json', makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 100, status: 'passed' }]
@@ -282,9 +279,9 @@ describe('Aggregation Flow', () => {
     expect(filesAfter).toHaveLength(0)
   })
 
-  it('11.10 No run files — nothing changes', async () => {
+  it('When no run files exist, then history remains unchanged', async () => {
     // WHEN history has 3 entries and no run files in inbox
-    mockedHistory = {
+    setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
         'Auth > login': [
@@ -293,7 +290,7 @@ describe('Aggregation Flow', () => {
           makeHistoryEntry({ runId: 'r3', durationMs: 120 })
         ]
       }
-    }
+    })
 
     const { history, summary } = await aggregateAndSummarize(TEST_DATA_DIR)
 

@@ -1,6 +1,6 @@
 {
   "name": "@practica/test-eyes-junit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "JUnit XML collector for Test Eyes analytics dashboard",
   "type": "module",
   "main": "dist/index.js",
@@ -19,15 +19,15 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "pnpm build:bundle",
+    "build:bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:fs --external:fs/promises --external:path --external:child_process --external:util && esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.js --banner:js='#!/usr/bin/env node' --external:fs --external:fs/promises --external:path --external:child_process --external:util && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "pnpm build"
-  },
-  "dependencies": {
-    "test-processing": "workspace:*"
+    "prepublishOnly": "pnpm build:bundle"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.27.3",
+    "test-processing": "workspace:*",
     "typescript": "^5.6.3"
   },
   "keywords": [
@@ -36,5 +36,9 @@
     "flaky-tests",
     "test-eyes"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/practicajs/test-eyes"
+  }
 }

@@ -1,4 +1,4 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import type {
   GitConfig,
@@ -6,10 +6,18 @@ import type {
   PushResult,
   AggregatedData,
   TestHistory,
+  RunData,
 } from "./types.js";
-import { loadAggregatedData as loadFromDisk } from "./file-operations.js";
+import {
+  loadAggregatedData as loadFromDisk,
+  saveTestData,
+  generateTestDataFilename,
+  ensureDir,
+  saveAggregatedData,
+  saveTestHistory,
+} from "./file-operations.js";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ============================================================================
 // Git Command Executor
@@ -18,11 +26,11 @@ const execAsync = promisify(exec);
 const EXEC_OPTIONS = { maxBuffer: 50 * 1024 * 1024 }; // 50MB buffer
 
 async function runGit(
-  args: string,
+  args: string[],
   cwd?: string,
 ): Promise<{ stdout: string; stderr: string }> {
   try {
-    return await execAsync(`git ${args}`, { cwd, ...EXEC_OPTIONS });
+    return await execFileAsync("git", args, { cwd, ...EXEC_OPTIONS });
   } catch (error) {
     const execError = error as {
       stdout?: string;
@@ -30,17 +38,17 @@ async function runGit(
       message: string;
     };
     throw new Error(
-      `Git command failed: git ${args}\n${execError.stderr || execError.message}`,
+      `Git command failed: git ${args.join(" ")}\n${execError.stderr || execError.message}`,
     );
   }
 }
 
 async function runGitSafe(
-  args: string,
+  args: string[],
   cwd?: string,
 ): Promise<{ stdout: string; stderr: string; success: boolean }> {
   try {
-    const result = await execAsync(`git ${args}`, { cwd, ...EXEC_OPTIONS });
+    const result = await execFileAsync("git", args, { cwd, ...EXEC_OPTIONS });
     return { ...result, success: true };
   } catch (error) {
     const execError = error as { stdout?: string; stderr?: string };
@@ -57,8 +65,8 @@ async function runGitSafe(
 // ============================================================================
 
 export async function configureGit(config: GitConfig): Promise<void> {
-  await runGit(`config user.name "${config.userName}"`);
-  await runGit(`config user.email "${config.userEmail}"`);
+  await runGit(["config", "user.name", config.userName]);
+  await runGit(["config", "user.email", config.userEmail]);
 }
 
 export function getDefaultGitConfig(): GitConfig {
@@ -73,12 +81,11 @@ export function getDefaultGitConfig(): GitConfig {
 // ============================================================================
 
 export async function fetchBranches(branches: string[]): Promise<void> {
-  const branchList = branches.join(" ");
-  const result = await runGitSafe(`fetch origin ${branchList}`);
+  const result = await runGitSafe(["fetch", "origin", ...branches]);
 
   if (!result.success) {
     // Try fetching main only as fallback
-    await runGit("fetch origin main");
+    await runGit(["fetch", "origin", "main"]);
   }
 }
 
@@ -87,40 +94,40 @@ export async function checkoutBranch(
   createOrphan = false,
 ): Promise<boolean> {
   if (createOrphan) {
-    const result = await runGitSafe(`checkout ${branch}`);
+    const result = await runGitSafe(["checkout", branch]);
     if (!result.success) {
-      await runGit(`checkout --orphan ${branch}`);
+      await runGit(["checkout", "--orphan", branch]);
       return true; // Created new orphan branch
     }
     return false; // Existing branch
   }
 
-  await runGit(`checkout ${branch}`);
+  await runGit(["checkout", branch]);
   return false;
 }
 
 export async function checkoutOrCreateBranch(branch: string): Promise<boolean> {
   // Try 1: checkout existing local branch (force to discard local changes)
-  const result = await runGitSafe(`checkout -f ${branch}`);
+  const result = await runGitSafe(["checkout", "-f", branch]);
   if (result.success) {
     return false;
   }
 
   // Try 2: checkout from remote (branch exists on remote but not locally)
-  const fromRemote = await runGitSafe(`checkout -b ${branch} origin/${branch}`);
+  const fromRemote = await runGitSafe(["checkout", "-b", branch, `origin/${branch}`]);
   if (fromRemote.success) {
     return false;
   }
 
   // Try 3: create new orphan branch (only if branch doesn't exist)
-  const branchExists = await runGitSafe(`show-ref --verify --quiet refs/heads/${branch}`);
+  const branchExists = await runGitSafe(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
   if (branchExists.success) {
     // Branch exists but checkout failed - force checkout
-    await runGit(`checkout -f ${branch}`);
+    await runGit(["checkout", "-f", branch]);
     return false;
   }
 
-  await runGit(`checkout --orphan ${branch}`);
+  await runGit(["checkout", "--orphan", branch]);
   return true;
 }
 
@@ -153,7 +160,7 @@ export async function fetchAggregatedData(
     return loadFromDisk(filepath);
   }
 
-  const result = await runGitSafe(`show origin/${branch}:${filepath}`);
+  const result = await runGitSafe(["show", `origin/${branch}:${filepath}`]);
 
   if (!result.success || !result.stdout.trim()) {
     return { ...EMPTY_AGGREGATED_DATA };
@@ -178,7 +185,7 @@ export async function fetchTestHistory(
     return { ...EMPTY_TEST_HISTORY };
   }
 
-  const result = await runGitSafe(`show origin/${branch}:${filepath}`);
+  const result = await runGitSafe(["show", `origin/${branch}:${filepath}`]);
 
   if (!result.success || !result.stdout.trim()) {
     return { ...EMPTY_TEST_HISTORY };
@@ -197,16 +204,16 @@ export async function fetchTestHistory(
 
 export async function stageFiles(patterns: string[]): Promise<void> {
   for (const pattern of patterns) {
-    await runGit(`add ${pattern}`);
+    await runGit(["add", pattern]);
   }
 }
 
 export async function stageAll(): Promise<void> {
-  await runGit("add .");
+  await runGit(["add", "."]);
 }
 
 export async function hasChanges(): Promise<boolean> {
-  const result = await runGitSafe("diff --staged --quiet");
+  const result = await runGitSafe(["diff", "--staged", "--quiet"]);
   return !result.success; // Exit code 1 means there are changes
 }
 
@@ -218,7 +225,7 @@ export async function commit(message: string): Promise<CommitResult> {
   }
 
   try {
-    const { stdout } = await runGit(`commit --no-verify -m "${message}"`);
+    const { stdout } = await runGit(["commit", "--no-verify", "-m", message]);
     const shaMatch = stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
     const commitSha = shaMatch?.[1];
 
@@ -234,8 +241,10 @@ export async function commit(message: string): Promise<CommitResult> {
 
 export async function push(branch: string, force = false): Promise<PushResult> {
   try {
-    const forceFlag = force ? "--force" : "";
-    await runGit(`push origin ${branch} ${forceFlag}`.trim());
+    const args = force
+      ? ["push", "--force", "origin", branch]
+      : ["push", "origin", branch];
+    await runGit(args);
     return { success: true, message: `Pushed to ${branch}` };
   } catch (error) {
     return { success: false, message: (error as Error).message };
@@ -257,7 +266,7 @@ export async function pushWithRetry(
     }
 
     // Pull latest and rebase before retry
-    await runGitSafe(`pull --rebase origin ${branch}`);
+    await runGitSafe(["pull", "--rebase", "origin", branch]);
   }
 
   return { success: false, message: `Failed after ${maxRetries} retries` };
@@ -269,10 +278,10 @@ export async function pushWithUpstream(
   force = false,
 ): Promise<PushResult> {
   try {
-    const forceFlag = force ? "--force" : "";
-    await runGit(
-      `push origin ${localBranch}:${remoteBranch} ${forceFlag}`.trim(),
-    );
+    const args = force
+      ? ["push", "--force", "origin", `${localBranch}:${remoteBranch}`]
+      : ["push", "origin", `${localBranch}:${remoteBranch}`];
+    await runGit(args);
     return {
       success: true,
       message: `Pushed ${localBranch} to ${remoteBranch}`,
@@ -287,16 +296,90 @@ export async function pushWithUpstream(
 // ============================================================================
 
 export async function removeAllTracked(): Promise<void> {
-  await runGitSafe("rm -rf .");
+  await runGitSafe(["rm", "-rf", "."]);
 }
 
 export async function getCurrentBranch(): Promise<string> {
-  const { stdout } = await runGit("rev-parse --abbrev-ref HEAD");
+  const { stdout } = await runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
   return stdout.trim();
 }
 
 export async function getCurrentSha(): Promise<string> {
-  const { stdout } = await runGit("rev-parse HEAD");
+  const { stdout } = await runGit(["rev-parse", "HEAD"]);
   return stdout.trim();
+}
+
+// ============================================================================
+// High-Level Push (Stubbable Boundaries for Testing)
+// ============================================================================
+
+export interface PushRunDataOptions {
+  branch: string;
+  runData: RunData;
+}
+
+/**
+ * Stubbable boundary for collection flow.
+ * Receives RunData, writes file, and pushes to git.
+ * Mock this in tests to capture the actual data being pushed.
+ */
+export async function pushRunDataToGit(
+  options: PushRunDataOptions,
+): Promise<PushResult> {
+  const { branch, runData } = options;
+
+  await configureGit(getDefaultGitConfig());
+  await fetchBranches([branch]);
+  await checkoutOrCreateBranch(branch);
+
+  // Write run file
+  const runsDir = "data/runs";
+  const filename = generateTestDataFilename(runData.commitSha);
+  await ensureDir(runsDir);
+  await saveTestData(runsDir, filename, runData);
+
+  // Stage, commit, push
+  await stageFiles([runsDir]);
+  const commitResult = await commit(`Add test run: ${runData.runId}`);
+  if (!commitResult.success) {
+    return { success: false, message: commitResult.message };
+  }
+
+  return await pushWithRetry(branch);
+}
+
+export interface PushAggregatedDataOptions {
+  branch: string;
+  summary: AggregatedData;
+  history: TestHistory;
+}
+
+/**
+ * Stubbable boundary for aggregation flow.
+ * Receives AggregatedData and TestHistory, writes files, and pushes to git.
+ * Mock this in tests to capture the actual data being pushed.
+ */
+export async function pushAggregatedDataToGit(
+  options: PushAggregatedDataOptions,
+): Promise<PushResult> {
+  const { branch, summary, history } = options;
+
+  await configureGit(getDefaultGitConfig());
+  await fetchBranches([branch]);
+  await checkoutOrCreateBranch(branch);
+
+  // Write summary and history files
+  await ensureDir("data");
+  await saveAggregatedData("data/test-summary.json", summary);
+  await saveTestHistory("data/test-history.json", history);
+
+  // Stage, commit, push
+  await stageFiles(["data/test-summary.json", "data/test-history.json"]);
+  const commitResult = await commit("Update aggregated test data");
+  if (!commitResult.success) {
+    return { success: false, message: commitResult.message };
+  }
+
+  return await pushWithRetry(branch);
 }
 

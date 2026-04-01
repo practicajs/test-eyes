@@ -1,6 +1,6 @@
 {
   "name": "@practica/test-eyes",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Playwright reporter for Test Eyes analytics dashboard",
   "type": "module",
   "main": "dist/index.js",
@@ -9,7 +9,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
@@ -17,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "pnpm build:bundle",
     "build:bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@playwright/test --external:child_process --external:util --external:fs --external:fs/promises --external:path && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm build:bundle"
@@ -42,6 +41,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/test-eyes"
+    "url": "https://github.com/practicajs/test-eyes"
   }
 }

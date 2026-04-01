@@ -34,14 +34,23 @@ export async function removeDir(dirPath: string): Promise<void> {
 // Test Data Files
 // ============================================================================
 
+function validateFilename(filename: string): void {
+  if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+    throw new Error(`Invalid filename: ${filename}`)
+  }
+}
+
 export function generateTestDataFilename(commitSha: string): string {
   const date = new Date().toISOString().split('T')[0]
   const shortSha = commitSha.slice(0, 7)
   const random = Math.random().toString(16).slice(2, 6)  // 4-char hex suffix
-  return `${date}_${shortSha}_${random}.json`
+  const filename = `${date}_${shortSha}_${random}.json`
+  validateFilename(filename)
+  return filename
 }
 
 export async function saveTestData(dataDir: string, filename: string, data: RunData): Promise<string> {
+  validateFilename(filename)
   await ensureDir(dataDir)
   const filepath = path.join(dataDir, filename)
   await writeFile(filepath, JSON.stringify(data, null, 2))

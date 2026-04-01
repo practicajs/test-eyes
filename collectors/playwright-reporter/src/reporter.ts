@@ -6,12 +6,16 @@ import type {
   TestCase,
   TestResult as PlaywrightTestResult
 } from '@playwright/test/reporter'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import type { TestEyesReporterOptions } from './types.js'
 import {
   collectFromRunData,
   type TestResult,
   type RunData
 } from 'test-processing'
+
+const execFileAsync = promisify(execFile)
 
 interface TestAttempts {
   test: TestCase
@@ -24,9 +28,22 @@ export class TestEyesReporter implements Reporter {
   private startTime = 0
 
   constructor(options: TestEyesReporterOptions = {}) {
+    this.validateOptions(options)
     this.options = {
       dataBranch: options.dataBranch ?? 'gh-data',
       prNumber: options.prNumber ?? this.getPrNumber()
+    }
+  }
+
+  private validateOptions(options: TestEyesReporterOptions): void {
+    if (options.dataBranch !== undefined && typeof options.dataBranch !== 'string') {
+      throw new Error('[test-eyes] Invalid option: dataBranch must be a string')
+    }
+    if (options.prNumber !== undefined && typeof options.prNumber !== 'number') {
+      throw new Error('[test-eyes] Invalid option: prNumber must be a number')
+    }
+    if (options.dataBranch !== undefined && options.dataBranch.trim() === '') {
+      throw new Error('[test-eyes] Invalid option: dataBranch must not be empty')
     }
   }
 
@@ -138,10 +155,7 @@ export class TestEyesReporter implements Reporter {
   }
 
   private async getCurrentSha(): Promise<string> {
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-    const { stdout } = await execAsync('git rev-parse HEAD')
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'])
     return stdout.trim()
   }
 }

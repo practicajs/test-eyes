@@ -25,9 +25,7 @@ export {
 // Collection (main entry points)
 export {
   collectFromRunData,
-  pushRunData,
-  type CollectResult,
-  type PushRunDataOptions
+  type CollectResult
 } from './collector.js'
 
 // JUnit Parser (for junit collector)
@@ -36,7 +34,11 @@ export { parseAndBuildRunData } from './junit-parser.js'
 // Git Operations (stubbable boundaries for testing)
 export {
   fetchTestHistory,
-  fetchAggregatedData
+  fetchAggregatedData,
+  pushRunDataToGit,
+  pushAggregatedDataToGit,
+  type PushRunDataOptions,
+  type PushAggregatedDataOptions
 } from './git-operations.js'
 
 // File Operations

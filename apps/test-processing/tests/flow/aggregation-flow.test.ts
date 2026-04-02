@@ -70,30 +70,21 @@ describe('Aggregation Flow', () => {
   })
 
   afterEach(async () => {
-    if (existsSync(TEST_DATA_DIR)) {
-      await rm(TEST_DATA_DIR, { recursive: true, force: true })
+    const dirToClean = TEST_DATA_DIR
+    if (dirToClean && existsSync(dirToClean)) {
+      await rm(dirToClean, { recursive: true, force: true })
     }
   })
 
-  it('When single run with single test, then history contains one entry', async () => {
+  it('When single run with single test, then history and summary reflect that test', async () => {
     const runFile = makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 200, status: 'passed' }]
     })
     await writeRunFile('run1.json', runFile)
 
-    const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
+    const { history, summary } = await aggregateAndSummarize(TEST_DATA_DIR)
 
     expect(history.tests['Auth > login']).toHaveLength(1)
-  })
-
-  it('When single run with single test, then summary has correct stats', async () => {
-    const runFile = makeRunFile({
-      tests: [{ name: 'Auth > login', durationMs: 200, status: 'passed' }]
-    })
-    await writeRunFile('run1.json', runFile)
-
-    const { summary } = await aggregateAndSummarize(TEST_DATA_DIR)
-
     expect(summary.tests['Auth > login']).toEqual(
       expect.objectContaining({ passCount: 1, avgDurationMs: 200, p95DurationMs: 200 })
     )
@@ -214,7 +205,7 @@ describe('Aggregation Flow', () => {
     )
   })
 
-  it('When new test appears in run, then history contains the new test', async () => {
+  it('When new test appears in run, then history and summary include the new test', async () => {
     setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
@@ -229,29 +220,10 @@ describe('Aggregation Flow', () => {
       ]
     }))
 
-    const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
+    const { history, summary } = await aggregateAndSummarize(TEST_DATA_DIR)
 
     expect(history.tests['Auth > login']).toHaveLength(2)
     expect(history.tests['Checkout > pay']).toHaveLength(1)
-  })
-
-  it('When new test appears in run, then summary includes the new test', async () => {
-    setMockedHistory({
-      schemaVersion: '1.0.0',
-      tests: {
-        'Auth > login': [makeHistoryEntry({ runId: 'r1', durationMs: 100 })]
-      }
-    })
-
-    await writeRunFile('run2.json', makeRunFile({
-      tests: [
-        { name: 'Auth > login', durationMs: 110, status: 'passed' },
-        { name: 'Checkout > pay', durationMs: 500, status: 'passed' }
-      ]
-    }))
-
-    const { summary } = await aggregateAndSummarize(TEST_DATA_DIR)
-
     expect(summary.tests['Auth > login']).toBeDefined()
     expect(summary.tests['Checkout > pay']).toBeDefined()
   })

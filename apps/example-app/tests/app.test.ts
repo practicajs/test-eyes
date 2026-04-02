@@ -7,16 +7,14 @@ describe('auth', () => {
 })
 
 describe('payments', () => {
-  it('When payment submitted, then card is charged', async () => {
-    // Slow test - simulates payment processing
+  it('When payment submitted, then card is charged (slow: 1.5s)', async () => {
     await new Promise(r => setTimeout(r, 1500))
     expect(true).toBe(true)
   })
 })
 
 describe('profile', () => {
-  it('When profile accessed, then user data loads', () => {
-    // Flaky test - fails ~30% of the time
+  it('When profile accessed, then user data loads (flaky: 30% fail rate)', () => {
     const random = Math.random()
     expect(random > 0.3).toBe(true)
   })

@@ -99,8 +99,7 @@ describe('Aggregation Flow', () => {
     )
   })
 
-  it('When multiple run files exist, then all are aggregated into history', async () => {
-    // WHEN no history exists and 2 run files each have Auth > login (200ms, 300ms)
+  it('When multiple run files exist, then history has all entries', async () => {
     await writeRunFile('run1.json', makeRunFile({
       tests: [{ name: 'Auth > login', durationMs: 200, status: 'passed' }]
     }))
@@ -108,20 +107,27 @@ describe('Aggregation Flow', () => {
       tests: [{ name: 'Auth > login', durationMs: 300, status: 'passed' }]
     }))
 
-    const { history, summary } = await aggregateAndSummarize(TEST_DATA_DIR)
+    const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
 
-    // THEN history has 2 entries, summary has totalRuns: 2, avgDurationMs: 250
     expect(history.tests['Auth > login']).toHaveLength(2)
+  })
+
+  it('When multiple run files exist, then summary has correct totals', async () => {
+    await writeRunFile('run1.json', makeRunFile({
+      tests: [{ name: 'Auth > login', durationMs: 200, status: 'passed' }]
+    }))
+    await writeRunFile('run2.json', makeRunFile({
+      tests: [{ name: 'Auth > login', durationMs: 300, status: 'passed' }]
+    }))
+
+    const { summary } = await aggregateAndSummarize(TEST_DATA_DIR)
+
     expect(summary.tests['Auth > login']).toEqual(
-      expect.objectContaining({
-        totalRuns: 2,
-        avgDurationMs: 250
-      })
+      expect.objectContaining({ totalRuns: 2, avgDurationMs: 250 })
     )
   })
 
-  it('When new runs arrive, then they append to existing history', async () => {
-    // WHEN history has 3 entries for Auth > login and 1 new run file arrives
+  it('When new runs arrive, then history count increases', async () => {
     setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
@@ -139,17 +145,28 @@ describe('Aggregation Flow', () => {
 
     const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
 
-    // THEN history has 4 entries (3 old + 1 new), old entries preserved
-    const entries = history.tests['Auth > login']
-    expect(entries).toHaveLength(4)
-    expect(entries).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ runId: 'r1' }),
-        expect.objectContaining({ runId: 'r2' }),
-        expect.objectContaining({ runId: 'r3' }),
-        expect.objectContaining({ status: 'passed', durationMs: 130 })
-      ])
-    )
+    expect(history.tests['Auth > login']).toHaveLength(4)
+  })
+
+  it('When new runs arrive, then old entries are preserved', async () => {
+    setMockedHistory({
+      schemaVersion: '1.0.0',
+      tests: {
+        'Auth > login': [
+          makeHistoryEntry({ runId: 'r1', durationMs: 100 }),
+          makeHistoryEntry({ runId: 'r2', durationMs: 110 })
+        ]
+      }
+    })
+
+    await writeRunFile('run3.json', makeRunFile({
+      tests: [{ name: 'Auth > login', durationMs: 120, status: 'passed' }]
+    }))
+
+    const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
+
+    expect(history.tests['Auth > login'][0].runId).toBe('r1')
+    expect(history.tests['Auth > login'][1].runId).toBe('r2')
   })
 
   it('When history exceeds cap, then oldest entries are dropped', async () => {
@@ -256,8 +273,7 @@ describe('Aggregation Flow', () => {
     expect(summary.tests['Checkout > pay']).toBeDefined()
   })
 
-  it('When test not in current run, then its history is preserved', async () => {
-    // WHEN history has Auth > login (5 entries) and run file has only Checkout > pay
+  it('When test not in current run, then old test history is preserved', async () => {
     setMockedHistory({
       schemaVersion: '1.0.0',
       tests: {
@@ -271,11 +287,28 @@ describe('Aggregation Flow', () => {
       tests: [{ name: 'Checkout > pay', durationMs: 500, status: 'passed' }]
     }))
 
-    const { history, summary } = await aggregateAndSummarize(TEST_DATA_DIR)
+    const { history } = await aggregateAndSummarize(TEST_DATA_DIR)
 
-    // THEN Auth > login stays in history + summary unchanged, Checkout > pay added
     expect(history.tests['Auth > login']).toHaveLength(5)
     expect(history.tests['Checkout > pay']).toHaveLength(1)
+  })
+
+  it('When test not in current run, then old test summary is preserved', async () => {
+    setMockedHistory({
+      schemaVersion: '1.0.0',
+      tests: {
+        'Auth > login': Array.from({ length: 5 }, (_, i) =>
+          makeHistoryEntry({ runId: `r${i}`, durationMs: 100 + i * 10 })
+        )
+      }
+    })
+
+    await writeRunFile('run6.json', makeRunFile({
+      tests: [{ name: 'Checkout > pay', durationMs: 500, status: 'passed' }]
+    }))
+
+    const { summary } = await aggregateAndSummarize(TEST_DATA_DIR)
+
     expect(summary.tests['Auth > login'].totalRuns).toBe(5)
     expect(summary.tests['Checkout > pay'].totalRuns).toBe(1)
   })

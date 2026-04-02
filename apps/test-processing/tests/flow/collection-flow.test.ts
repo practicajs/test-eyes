@@ -29,8 +29,7 @@ vi.mock('../../src/git-operations.js', async (importOriginal) => {
   }
 })
 
-function getCapturedRunData(): RunData | null {
-  const mock = vi.mocked(gitOps.pushRunDataToGit)
+function getCapturedRunData(mock: ReturnType<typeof vi.mocked<typeof gitOps.pushRunDataToGit>>): RunData | null {
   if (mock.mock.calls.length === 0) return null
   return mock.mock.calls[0][0].runData
 }
@@ -66,7 +65,7 @@ describe('Collection Flow', () => {
     )
     await reporter.onEnd(makeFullResult())
 
-    const runData = getCapturedRunData()
+    const runData = getCapturedRunData(vi.mocked(gitOps.pushRunDataToGit))
     expect(runData?.tests).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'Auth > login', status: 'passed', durationMs: 1550 }),
       expect.objectContaining({ name: 'Auth > logout', status: 'passed', durationMs: 800 })
@@ -85,7 +84,7 @@ describe('Collection Flow', () => {
     )
     await reporter.onEnd(makeFullResult('failed'))
 
-    const runData = getCapturedRunData()
+    const runData = getCapturedRunData(vi.mocked(gitOps.pushRunDataToGit))
     expect(runData?.tests).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'Checkout > pay', status: 'failed' }),
       expect.objectContaining({ name: 'Checkout > cart', status: 'failed' })
@@ -100,7 +99,7 @@ describe('Collection Flow', () => {
     reporter.onTestEnd(test, makePlaywrightResult({ duration: 150, status: 'passed' }))
     await reporter.onEnd(makeFullResult())
 
-    const runData = getCapturedRunData()
+    const runData = getCapturedRunData(vi.mocked(gitOps.pushRunDataToGit))
     expect(runData?.tests[0]).toEqual(expect.objectContaining({
       name: 'Profile > avatar',
       status: 'passed',
@@ -118,7 +117,7 @@ describe('Collection Flow', () => {
     reporter.onTestEnd(flakyTest, makePlaywrightResult({ status: 'passed' }))
     await reporter.onEnd(makeFullResult())
 
-    const runData = getCapturedRunData()
+    const runData = getCapturedRunData(vi.mocked(gitOps.pushRunDataToGit))
     expect(runData?.tests).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'Auth > login', status: 'passed' }),
       expect.objectContaining({ name: 'Payment > charge', status: 'failed' }),
@@ -134,7 +133,7 @@ describe('Collection Flow', () => {
     )
     await reporter.onEnd(makeFullResult())
 
-    const runData = getCapturedRunData()
+    const runData = getCapturedRunData(vi.mocked(gitOps.pushRunDataToGit))
     expect(runData?.tests[0]).toEqual(expect.objectContaining({ name: 'Admin > disabled', status: 'skipped' }))
   })
 
@@ -145,7 +144,7 @@ describe('Collection Flow', () => {
     reporter.onTestEnd(test, makePlaywrightResult({ duration: 180, status: 'passed' }))
     await reporter.onEnd(makeFullResult())
 
-    const runData = getCapturedRunData()
+    const runData = getCapturedRunData(vi.mocked(gitOps.pushRunDataToGit))
     expect(runData?.tests[0]).toEqual(expect.objectContaining({ durationMs: 180, retries: 1 }))
   })
 })

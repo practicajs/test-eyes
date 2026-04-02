@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 
 describe('auth', () => {
-  it('should login successfully', () => {
+  it('When valid credentials provided, then login succeeds', () => {
     expect(true).toBe(true)
   })
 })
 
 describe('payments', () => {
-  it('should charge card', async () => {
+  it('When payment submitted, then card is charged', async () => {
     // Slow test - simulates payment processing
     await new Promise(r => setTimeout(r, 1500))
     expect(true).toBe(true)
@@ -15,7 +15,7 @@ describe('payments', () => {
 })
 
 describe('profile', () => {
-  it('should load user data', () => {
+  it('When profile accessed, then user data loads', () => {
     // Flaky test - fails ~30% of the time
     const random = Math.random()
     expect(random > 0.3).toBe(true)
@@ -23,13 +23,13 @@ describe('profile', () => {
 })
 
 describe('notifications', () => {
-  it('should send email', () => {
+  it('When notification triggered, then email is sent', () => {
     expect(true).toBe(true)
   })
 })
 
 describe('settings', () => {
-  it('should save preferences', () => {
+  it('When preferences updated, then settings are saved', () => {
     expect(true).toBe(true)
   })
 })

@@ -1,7 +1,9 @@
 import type { CollectFromRunDataOptions, RunData } from './types.js'
 import {
   getCurrentBranch,
+  getCurrentSha,
   checkoutOrCreateBranch,
+  checkoutSha,
   pushRunDataToGit
 } from './git-operations.js'
 import { handleError } from 'error-handling'
@@ -31,8 +33,10 @@ export async function collectFromRunData(
   const { runData, dataBranch } = options
 
   try {
-    // Save original branch before switching
+    // Save original ref before switching (branch name or SHA for detached HEAD)
     const originalBranch = await getCurrentBranch()
+    const originalSha = await getCurrentSha()
+    const isDetached = originalBranch === 'HEAD'
 
     // Push run data to git (this is the boundary we mock in tests)
     const pushResult = await pushRunDataToGit({
@@ -40,8 +44,10 @@ export async function collectFromRunData(
       runData
     })
 
-    // Return to original branch
-    if (originalBranch && originalBranch !== dataBranch) {
+    // Return to original ref
+    if (isDetached) {
+      await checkoutSha(originalSha)
+    } else if (originalBranch && originalBranch !== dataBranch) {
       await checkoutOrCreateBranch(originalBranch)
     }
 

@@ -309,6 +309,10 @@ export async function getCurrentSha(): Promise<string> {
   return stdout.trim();
 }
 
+export async function checkoutSha(sha: string): Promise<void> {
+  await runGit(["checkout", sha]);
+}
+
 // ============================================================================
 // High-Level Push (Stubbable Boundaries for Testing)
 // ============================================================================
